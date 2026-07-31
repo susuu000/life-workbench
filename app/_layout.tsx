@@ -41,7 +41,9 @@ export default function RootLayout() {
       router.replace('/(auth)/login');
     }
     if (session && inAuthGroup) {
-      router.replace('/(tabs)/index');
+      // Web 静态导出下 /(tabs)/index 可能触发 "Unmatched Route"，
+      // 统一用根路径 /（expo-router 会自动渲染 tabs/index 内容）
+      router.replace('/');
     }
   }, [session, loading, segments]);
 
