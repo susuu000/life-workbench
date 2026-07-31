@@ -109,17 +109,9 @@ const styles = StyleSheet.create({
   },
   loadingText: { fontSize: 32, color: '#FFFFFF', fontWeight: 'bold', letterSpacing: 8 },
   badge: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 2,
-    backgroundColor: Colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
+    // Web/PWA 模式下不使用绝对定位（会与 Tab 栏重叠），
+    // 改由各页面自行决定是否展示云端状态
+    display: 'none',
   },
   badgeError: { backgroundColor: '#FFF5F5' },
   dot: { width: 6, height: 6, borderRadius: 3, marginRight: 4 },
