@@ -35,8 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+        # 不写死 version：自动读取 package.json 的 packageManager（pnpm@10.28.2，与 lockfile 一致）
       - uses: actions/setup-node@v4
         with:
           node-version: 22
