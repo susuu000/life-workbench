@@ -10,11 +10,12 @@ export const NEWS_SOURCES: RssSource[] = [
   { url: 'http://www.people.com.cn/rss/politics.xml', source: 'renmin' },
 ];
 
-// AI 前沿：机器之心 / 36氪 / 量子位
+// AI 前沿：机器之心 / 36氪 / 量子位 / GitHub Blog
 export const AI_SOURCES: RssSource[] = [
   { url: 'https://www.jiqizhixin.com/rss', source: '机器之心' },
   { url: 'https://36kr.com/feed', source: '36氪' },
   { url: 'https://www.qbitai.com/feed', source: '量子位' },
+  { url: 'https://github.blog/feed/', source: 'GitHub' },
 ];
 
 // 每日外刊（英语学习）：BBC / NPR / VOA

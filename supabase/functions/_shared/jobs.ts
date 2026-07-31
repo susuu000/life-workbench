@@ -208,7 +208,7 @@ export async function refreshBookMovie(sb: SupabaseClient) {
       log(`TMDB ${kind} 抓取失败: ${(e as Error).message}`);
     }
   }
-  const n = await upsertByKey(sb, 'book_movie_new', rows, 'url');
+  const n = await upsertByKey(sb, 'book_movie_new', rows, 'url', 45);
   log(`book_movie_new 新增 ${n} 条`);
   return n;
 }

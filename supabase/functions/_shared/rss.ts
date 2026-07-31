@@ -14,6 +14,7 @@ function decodeEntities(s: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&#0?39;/g, "'")
+    .replace(/&#(\d+);/g, (_m, n) => String.fromCharCode(parseInt(n, 10)))
     .replace(/&amp;/g, '&');
 }
 

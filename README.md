@@ -144,7 +144,7 @@ supabase functions deploy daily-cron
 | 函数 | 作用 | 写入表 |
 |------|------|--------|
 | `refresh-news` | 新华网/人民网 RSS → 新闻 | `news_cache` |
-| `refresh-ai-frontier` | 机器之心/36氪/量子位 RSS → AI 前沿 | `ai_frontier_cache` |
+| `refresh-ai-frontier` | 机器之心/36氪/量子位/GitHub Blog RSS → AI 前沿 | `ai_frontier_cache` |
 | `refresh-ai-insights` | AI RSS + AI 供应商结构化解读（当前 OpenRouter） | `ai_insights` |
 | `refresh-listening` | 外刊 RSS + AI 供应商中译（当前 OpenRouter） | `listening_articles` |
 | `refresh-bookmovie` | TMDB 电影（正在热映/即将上映，需 `TMDB_API_KEY`） | `book_movie_new` |
@@ -341,8 +341,9 @@ life-workbench/
 - [x] **部署 Edge Functions + 每日刷新** — 8 个函数已部署、4 个 Secrets 已设置（已用项目自己的 service_role 密钥）；每日刷新采用「客户端启动刷新（开箱即用）+ GitHub Actions 工作流（可选无人值守）」双层机制（pg_cron 在本套餐不可用）
 - [x] **AI 供应商已支持免费方案** — 不充 DeepSeek 也能用：设 `GEMINI_API_KEY`(推荐) / `GROQ_API_KEY` / `OPENROUTER_API_KEY` 任一即可，见上方密钥说明
 - [x] **OpenRouter 已接入并实测通过** — `OPENROUTER_API_KEY` 已设为 Supabase Secret，当前 AI 解读/中译即由 OpenRouter 免费模型 `google/gemma-4-26b-a4b-it:free` 生成（已验证中文输出质量良好）；`ai_insights` 已生成 8 条、`listening_articles` 已生成含中译的条目
-- [x] **书影上新自动抓取（TMDB）** — Letterboxd RSS 被 Cloudflare 403 已弃用，改接 **TMDB API**（电影，含海报/评分）。设 `TMDB_API_KEY`（v3，[themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) 免费申请）或 `TMDB_API_READ_TOKEN`（v4）为 Supabase Secret 即可自动拉取；迁移 `0004` 已放开 `source` 约束并新增 `poster_url`/`rating` 列。
+- [x] **书影上新自动抓取（TMDB）** — Letterboxd RSS 被 Cloudflare 403 已弃用，改接 **TMDB API**（电影，含海报/评分）。`TMDB_API_KEY` 已设为 Supabase Secret 并实测拉取 27 部（正在热映/即将上映，`book_movie_new` 保留 45 天）；迁移 `0004` 已放开 `source` 约束并新增 `poster_url`/`rating` 列。
 - [x] **股市行业板块（新浪财经）** — 东方财富服务端调用失败已弃用，改接**新浪财经行业板块**（`money.finance.sina.com.cn` 的 `newFLJK.php`，GBK 解码、按涨跌幅排序），无需密钥，已验证拉取 84 个板块。
+- [x] **AI 前沿新增 GitHub 源** — `AI_SOURCES` 在机器之心/36氪/量子位基础上增加 **GitHub Blog**（`github.blog/feed/`），已实测拉取 6 条（Copilot/Dependabot/供应链安全等）；并修复 RSS 解析器对数值 HTML 实体（如 `&#8217;`）的解码，标题不再带乱码。
 - [x] **Web PWA 构建验证通过** — `pnpm build:web`（`expo export --platform web`）已实测可导出 15 个静态路由到 `dist/`。构建需 **Node 22**（静态渲染阶段 supabase realtime 需要全局 WebSocket）；`app.json` 的 plugins 已移除多余的 `expo-web-browser`（其无 config plugin，会导致 TS 插件加载报错）；已补充依赖 `react-native-web`、`@opentelemetry/api`。
 - [ ] **Apple 开发者账号信息** — **非必需**：本应用的「手机端桌面版本」走 **Web PWA** 路线（见下方说明），无需 Apple 开发者账号。仅当你要把它做成上架 App Store 的原生 iOS App 时，才需在 `eas.json` 填 Team ID 并付费（$99/年）走 EAS Build/Submit。
 - [ ] **APP 正式图标** — 当前为占位月亮图标，可替换为国漫形象
