@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { supabase, getCurrentUserId } from '@/lib/supabase';
 import { Colors, Spacing, FontSize, BorderRadius } from '@/lib/theme';
+import { useTheme, applyWebFontFamily } from '@/lib/themeRuntime';
 import type { Profile, UserSettings } from '@/lib/types';
 
 /** 设置页 · 个人资料 / 天气 / 外观（部分持久化到 profiles / user_settings） */
@@ -23,6 +24,7 @@ export default function SettingsScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [saving, setSaving] = useState(false);
+  const { setOverrides, fontFamilyCss } = useTheme();
 
   const load = useCallback(async () => {
     const uid = await getCurrentUserId();
@@ -161,7 +163,11 @@ export default function SettingsScreen() {
             placeholder="#2E6F7E"
             placeholderTextColor={Colors.textMuted}
             autoCapitalize="characters"
-            onChangeText={(t) => patchSettings({ theme_color: t })}
+            onChangeText={(t) => {
+              patchSettings({ theme_color: t });
+              setOverrides({ themeColor: t });
+              applyWebFontFamily(fontFamilyCss);
+            }}
           />
         </Field>
         <Field label="正文字号（px）">
@@ -173,12 +179,88 @@ export default function SettingsScreen() {
             keyboardType="number-pad"
             onChangeText={(t) => {
               const n = parseInt(t, 10);
-              if (!isNaN(n)) patchSettings({ font_size: n });
+              if (!isNaN(n)) {
+                patchSettings({ font_size: n });
+                setOverrides({ fontSize: n });
+              }
             }}
           />
         </Field>
+        <Field label="正文字体">
+          <View style={styles.segRow}>
+            {(['default', 'serif', 'kai'] as const).map((f) => (
+              <TouchableOpacity
+                key={f}
+                style={[styles.seg, (settings?.font_family ?? 'default') === f && styles.segActive]}
+                onPress={() => {
+                  patchSettings({ font_family: f });
+                  setOverrides({ fontFamily: f });
+                  applyWebFontFamily(
+                    f === 'serif' ? '"Songti SC","SimSun",serif' : f === 'kai' ? '"Kaiti SC","KaiTi",serif' : '"PingFang SC","Noto Sans SC",sans-serif'
+                  );
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.segText, (settings?.font_family ?? 'default') === f && styles.segTextActive]}>
+                  {f === 'default' ? '黑体' : f === 'serif' ? '宋体' : '楷体'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Field>
+        <Field label="界面密度">
+          <View style={styles.segRow}>
+            {(['comfortable', 'compact'] as const).map((d) => (
+              <TouchableOpacity
+                key={d}
+                style={[styles.seg, (settings?.density ?? 'comfortable') === d && styles.segActive]}
+                onPress={() => {
+                  patchSettings({ density: d });
+                  setOverrides({ density: d });
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.segText, (settings?.density ?? 'comfortable') === d && styles.segTextActive]}>
+                  {d === 'comfortable' ? '宽松' : '紧凑'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Field>
         <Text style={styles.note}>
-          注：主题色、字号、模块顺序的全局实时切换将在后续版本随主题系统上线，当前仅做持久化保存。
+          主题色、字体、字号、密度修改后即时生效（主色在所有界面实时更新；字号/字体在网页端通过根字体继承，原生端主色与密度即时生效）。
+        </Text>
+      </Card>
+
+      {/* 板块每日目标 */}
+      <SectionTitle title="🎯 板块每日目标" />
+      <Card>
+        {(['english', 'ai_learning', 'reading', 'podcast', 'social_media', 'self_explore'] as const).map((m) => {
+          const labels: Record<string, string> = {
+            english: '英语', ai_learning: 'AI学习', reading: '阅读',
+            podcast: '播客', social_media: '自媒体', self_explore: '自我探索',
+          };
+          const targets = (settings?.module_targets as Record<string, number> | null) ?? {};
+          const val = targets[m] ?? 0;
+          return (
+            <Field key={m} label={labels[m] || m}>
+              <TextInput
+                style={styles.input}
+                value={String(val)}
+                placeholder="0 表示动态计算"
+                placeholderTextColor={Colors.textMuted}
+                keyboardType="number-pad"
+                onChangeText={(t) => {
+                  const n = parseInt(t, 10);
+                  const next = { ...targets, [m]: isNaN(n) ? 0 : Math.max(0, n) };
+                  patchSettings({ module_targets: next } as any);
+                }}
+              />
+            </Field>
+          );
+        })}
+        <Text style={styles.note}>
+          默认目标：英语 4 / AI学习 2 / 阅读动态 / 播客 5 / 自媒体 2 / 自我探索 3。设 0 表示根据实际任务数动态显示。
         </Text>
       </Card>
 
@@ -282,4 +364,13 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: Spacing.sm,
   },
+  segRow: { flexDirection: 'row', gap: Spacing.sm },
+  seg: {
+    flex: 1, alignItems: 'center', paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full, backgroundColor: Colors.background,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  segActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  segText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: '600' },
+  segTextActive: { color: '#FFFFFF' },
 });

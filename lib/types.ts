@@ -245,7 +245,9 @@ export interface UserSettings {
   id: string;
   user_id: string;
   theme_color: string;
+  font_family: string;
   font_size: number;
+  density: string;
   module_order: ModuleKey[];
   app_icon_url: string | null;
   app_name: string;
@@ -253,6 +255,8 @@ export interface UserSettings {
   weather_enabled: boolean;
   last_refresh_at: string | null;
   daily_refresh_enabled: boolean;
+  module_targets?: Record<string, number> | null;
+  custom_sections?: { id: string; name: string }[] | null;
 }
 
 /** ===== 天气缓存 ===== */

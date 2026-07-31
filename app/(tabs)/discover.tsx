@@ -8,10 +8,13 @@ import {
   RefreshControl,
   ActivityIndicator,
   Linking,
+  Alert,
+  Modal,
+  Clipboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, FontSize, BorderRadius } from '@/lib/theme';
-import { supabase } from '@/lib/supabase';
+import { supabase, getCurrentUserId } from '@/lib/supabase';
 import type {
   NewsItem,
   AIFrontierItem,
@@ -54,6 +57,112 @@ function changeColor(pct: number): string {
   if (pct > 0) return Colors.error;   // 涨 → 红
   if (pct < 0) return Colors.success; // 跌 → 绿
   return Colors.textSecondary;
+}
+
+/** ===== 共享：复制 + 收藏 操作按钮 ===== */
+function ActionButtons({
+  title, summary, url, category,
+}: {
+  title: string;
+  summary: string;
+  url?: string;
+  category: string;
+}) {
+  const [fav, setFav] = useState(false);
+  const [showCopyModal, setShowCopyModal] = useState(false);
+  const fullText = summary || title;
+
+  // 检查是否已收藏
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const uid = await getCurrentUserId();
+      if (!uid) return;
+      const { count } = await supabase
+        .from('collections')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', uid)
+        .eq('ref_table', category)
+        .eq('ref_id', title);
+      if (active) setFav((count ?? 0) > 0);
+    })().catch(() => {});
+    return () => { active = false; };
+  }, [title, category]);
+
+  const toggleFav = async () => {
+    const uid = await getCurrentUserId();
+    if (!uid) return;
+    if (fav) {
+      await supabase.from('collections').delete().eq('user_id', uid).eq('ref_id', title);
+      setFav(false);
+    } else {
+      await supabase.from('collections').insert({
+        user_id: uid, category, ref_table: category, ref_id: title,
+        collected_at: new Date().toISOString(),
+      });
+      setFav(true);
+    }
+  };
+
+  const copyText = (text: string) => {
+    if (Clipboard) {
+      Clipboard.setString(text);
+      Alert.alert('已复制', '文字已复制到剪贴板');
+    } else {
+      // Web 兜底
+      Alert.alert('已复制', text);
+    }
+  };
+
+  return (
+    <>
+      <View style={discStyles.actionRow}>
+        <TouchableOpacity
+          style={discStyles.actionBtn}
+          onPress={() => setShowCopyModal(true)}
+          activeOpacity={0.7}
+        >
+          <Text style={discStyles.actionBtnText}>📋 选择复制</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={discStyles.actionBtn}
+          onPress={() => copyText(fullText)}
+          activeOpacity={0.7}
+        >
+          <Text style={discStyles.actionBtnText}>📄 复制全文</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[discStyles.actionBtn, fav && discStyles.actionBtnFav]}
+          onPress={toggleFav}
+          activeOpacity={0.7}
+        >
+          <Text style={[discStyles.actionBtnText, fav && discStyles.actionBtnTextFav]}>
+            {fav ? '★ 已收藏' : '☆ 收藏'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* 选择复制弹窗 */}
+      <Modal visible={showCopyModal} transparent animationType="slide" onRequestClose={() => setShowCopyModal(false)}>
+        <View style={discStyles.copyMask}>
+          <View style={discStyles.copyBox}>
+            <Text style={discStyles.copyTitle}>选择复制 · {title}</Text>
+            <ScrollView style={discStyles.copyArea}>
+              <Text style={discStyles.copyText} selectable>{fullText}</Text>
+            </ScrollView>
+            <View style={discStyles.copyActions}>
+              <TouchableOpacity style={discStyles.copyCancel} onPress={() => setShowCopyModal(false)} activeOpacity={0.7}>
+                <Text style={discStyles.copyCancelText}>关闭</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={discStyles.copyConfirm} onPress={() => { copyText(fullText); setShowCopyModal(false); }} activeOpacity={0.7}>
+                <Text style={discStyles.copyConfirmText}>复制全文</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
 }
 
 export default function DiscoverScreen() {
@@ -162,6 +271,12 @@ function NewsSection() {
             <Text style={styles.cardTitle}>{it.title}</Text>
             {it.summary ? <Text style={styles.cardSummary}>{it.summary}</Text> : null}
             <Text style={styles.cardLink}>阅读原文 ›</Text>
+            <ActionButtons
+              title={it.title}
+              summary={it.summary || it.title}
+              url={it.url}
+              category="news"
+            />
           </TouchableOpacity>
         ))
       )}
@@ -238,6 +353,12 @@ function AISection() {
             <Text style={styles.cardTitle}>{it.title}</Text>
             {it.summary ? <Text style={styles.cardSummary}>{it.summary}</Text> : null}
             <Text style={styles.cardLink}>阅读原文 ›</Text>
+            <ActionButtons
+              title={it.title}
+              summary={it.summary || it.title}
+              url={it.url}
+              category="news"
+            />
           </TouchableOpacity>
         ))
       )}
@@ -374,6 +495,12 @@ function BookMovieSection() {
             <Text style={styles.cardTitle}>{it.title}</Text>
             {it.author ? <Text style={styles.cardSummary}>作者 / 导演：{it.author}</Text> : null}
             <Text style={styles.cardLink}>查看详情 ›</Text>
+            <ActionButtons
+              title={it.title}
+              summary={it.author ? `《${it.title}》 ${it.author}` : `《${it.title}》`}
+              url={it.url}
+              category="bookmovie"
+            />
           </TouchableOpacity>
         ))
       )}
@@ -535,4 +662,43 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     color: Colors.textMuted,
   },
+});
+
+/** ActionButtons 专用样式 */
+const discStyles = StyleSheet.create({
+  actionRow: {
+    flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md,
+    paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.divider,
+  },
+  actionBtn: {
+    flex: 1, alignItems: 'center', paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full, backgroundColor: Colors.background,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  actionBtnFav: { backgroundColor: Colors.gold, borderColor: Colors.gold },
+  actionBtnText: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: '600' },
+  actionBtnTextFav: { color: '#FFFFFF' },
+  /* 选择复制弹窗 */
+  copyMask: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
+  },
+  copyBox: {
+    width: '100%', backgroundColor: Colors.surface, borderRadius: BorderRadius.lg,
+    padding: Spacing.xl, borderWidth: 1, borderColor: Colors.border,
+  },
+  copyTitle: { fontSize: FontSize.base, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.md },
+  copyArea: { maxHeight: 200, backgroundColor: Colors.background, borderRadius: BorderRadius.sm, padding: Spacing.md },
+  copyText: { fontSize: FontSize.sm, color: Colors.textPrimary, lineHeight: 22 },
+  copyActions: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.lg },
+  copyCancel: {
+    flex: 1, alignItems: 'center', paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full, borderWidth: 1, borderColor: Colors.border,
+  },
+  copyCancelText: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  copyConfirm: {
+    flex: 1, alignItems: 'center', paddingVertical: Spacing.sm,
+    backgroundColor: Colors.primary, borderRadius: BorderRadius.full,
+  },
+  copyConfirmText: { fontSize: FontSize.sm, color: '#FFFFFF', fontWeight: '600' },
 });

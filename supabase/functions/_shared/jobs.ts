@@ -210,7 +210,69 @@ export async function refreshBookMovie(sb: SupabaseClient) {
   }
   const n = await upsertByKey(sb, 'book_movie_new', rows, 'url', 45);
   log(`book_movie_new 新增 ${n} 条`);
+
+  // 兜底抓取豆瓣热映/即将上映（网页抓取，失败不阻塞）
+  try {
+    const doubanRows = await fetchDoubanMovies();
+    if (doubanRows.length > 0) {
+      // 用 title 去重（db 已存在的不重复插入）
+      const existing = new Set(rows.map((r: any) => (r.title as string).trim()));
+      const fresh = doubanRows.filter((r: any) => !existing.has((r.title as string).trim()));
+      if (fresh.length > 0) {
+        const n2 = await upsertByKey(sb, 'book_movie_new', fresh, 'url', 8);
+        log(`豆瓣抓取 新增 ${n2} 条`);
+        return n + n2;
+      }
+    }
+  } catch (e) {
+    log(`豆瓣抓取失败（不影响 TMDB）: ${(e as Error).message}`);
+  }
+
   return n;
+}
+
+/** 豆瓣电影「正在热映」网页抓取（仅兜底，失败返回空） */
+async function fetchDoubanMovies(): Promise<Record<string, unknown>[]> {
+  const rows: Record<string, unknown>[] = [];
+  const today = new Date().toISOString().slice(0, 10);
+
+  for (const tag of ['nowplaying', 'later']) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 10000);
+      const resp = await fetch(`https://movie.douban.com/cinema/${tag}/ningbo/`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15' },
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      if (!resp.ok) continue;
+      const html = await resp.text();
+      // 简单解析：提取 <li class="list-item" ...> 内的电影标题与链接
+      const re = /<li[^>]*class="list-item"[^>]*>[\s\S]*?<a[^>]*href="(\/subject\/(\d+)\/)"[^>]*>([^<]+)<\/a>[\s\S]*?<\/li>/gi;
+      let match;
+      while ((match = re.exec(html)) !== null) {
+        const id = match[2];
+        const title = match[3].trim();
+        if (!id || !title || title.length > 60) continue;
+        rows.push({
+          type: 'movie',
+          title,
+          author: '',
+          source: 'douban',
+          url: `https://movie.douban.com/subject/${id}/`,
+          published_at: today,
+          poster_url: null,
+          rating: null,
+        });
+        if (rows.length >= 8) break;
+      }
+    } catch {
+      /* 豆瓣抓取失败静默 */
+    }
+    if (rows.length >= 8) break;
+  }
+
+  return rows;
 }
 
 // ---------- 股市行业板块（新浪财经） ----------

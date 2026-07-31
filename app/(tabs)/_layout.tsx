@@ -1,15 +1,17 @@
 import { Tabs } from 'expo-router';
 import { StyleSheet, View, Text, Platform } from 'react-native';
 import React from 'react';
-import { Colors, Spacing } from '@/lib/theme';
+import { Spacing, Colors } from '@/lib/theme';
+import { useTheme } from '@/lib/themeRuntime';
 
 /** 底部导航栏：首页 / 发现 / 我的 */
 export default function TabsLayout() {
+  const { colors } = useTheme();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
+        tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: Colors.textMuted,
         tabBarStyle: styles.tabBar,
         tabBarLabelStyle: styles.tabLabel,

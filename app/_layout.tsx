@@ -2,19 +2,30 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, StyleSheet } from 'react-native';
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, getCurrentUserId } from '@/lib/supabase';
 import { Colors } from '@/lib/theme';
+import { ThemeProvider, useTheme, applyWebFontFamily } from '@/lib/themeRuntime';
+import EdgeSwipe from '@/components/EdgeSwipe';
 
 /**
- * 根布局：全局状态栏 + 认证守卫 + 导航壳
+ * 根布局：全局状态栏 + 认证守卫 + 导航壳 + 运行时主题
  * 未登录 → 自动重定向到 /(auth)/login
  * 已登录 → 显示底部三 Tab（首页/发现/我的）
  */
 export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <AppShell />
+    </ThemeProvider>
+  );
+}
+
+function AppShell() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const segments = useSegments();
   const router = useRouter();
+  const { setOverrides, fontFamilyCss } = useTheme();
 
   useEffect(() => {
     // 获取初始会话
@@ -32,6 +43,32 @@ export default function RootLayout() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // 加载个性化主题（user_settings）
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const uid = await getCurrentUserId();
+      if (!uid) return;
+      const { data } = await supabase
+        .from('user_settings')
+        .select('theme_color, font_family, font_size, density')
+        .eq('user_id', uid)
+        .maybeSingle();
+      if (active && data) {
+        setOverrides({
+          themeColor: data.theme_color,
+          fontFamily: data.font_family,
+          fontSize: data.font_size,
+          density: data.density,
+        });
+        applyWebFontFamily(fontFamilyCss);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [session, setOverrides, fontFamilyCss]);
 
   // 认证守卫：未登录且不在 auth 页面 → 跳转登录
   useEffect(() => {
@@ -59,10 +96,12 @@ export default function RootLayout() {
     <>
       <StatusBar style="light" backgroundColor={Colors.primary} />
       <View style={styles.container}>
+        <EdgeSwipe>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         </Stack>
+        </EdgeSwipe>
         {/* 云端连接状态条 */}
         <CloudStatusBadge />
       </View>
@@ -86,7 +125,10 @@ function CloudStatusBadge() {
     }
     check();
     const id = setInterval(check, 30000); // 每30秒检测
-    return () => { mounted = false; clearInterval(id); };
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
   }, []);
 
   return (
