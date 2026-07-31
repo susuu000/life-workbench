@@ -4,7 +4,8 @@
 #         EXPO_PUBLIC_SUPABASE_URL        = https://xyufbgmhjmqdanrblvit.supabase.co
 #         EXPO_PUBLIC_SUPABASE_ANON_KEY   = 项目 anon key（见 .env.local）
 [build]
-  command = "pnpm build:web"
+  # Netlify 根路径部署：构建前去掉 app.json 中的 experiments.baseUrl（GitHub Pages 项目页需要它，Netlify 不需要）
+  command = "node -e \"const fs=require('fs'),j=JSON.parse(fs.readFileSync('app.json','utf8'));delete j.expo.experiments?.baseUrl;fs.writeFileSync('app.json',JSON.stringify(j,null,2)+'\\n')\" && pnpm build:web"
   publish = "dist"
 
 [build.environment]

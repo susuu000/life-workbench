@@ -42,25 +42,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
-      # 计算并注入 base path：用户页留空，项目页填 "/<repo>"
-      - name: 注入 experiments.baseUrl（按仓库类型）
-        run: |
-          if [ "${{ github.event.repository.name }}" = "${{ github.repository_owner }}.github.io" ]; then
-            BASE=""
-          else
-            BASE="/${{ github.event.repository.name }}"
-          fi
-          node -e "
-            const fs=require('fs');
-            const p='app.json';
-            const j=JSON.parse(fs.readFileSync(p,'utf8'));
-            j.expo.experiments=j.expo.experiments||{};
-            if (process.env.BASE) { j.expo.experiments.baseUrl=process.env.BASE; }
-            else { delete j.expo.experiments.baseUrl; }
-            fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n');
-            console.log('experiments.baseUrl =', j.expo.experiments.baseUrl || '(root)');
-          "
-
       - name: Build web bundle
         run: pnpm build:web
         env:
