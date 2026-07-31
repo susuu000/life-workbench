@@ -1,0 +1,23 @@
+# 每日自动刷新（替代 pg_cron，免费套餐也能用）
+# 触发：UTC 16:00 = 北京时间 0:00；也可在 Actions 页面手动 Run workflow
+# 前置：在仓库 Settings → Secrets → Actions 中新增仓库密钥
+#       SUPABASE_ANON_KEY = 项目 publishable key（susu-life-workbench 项目为 sb_publishable_rA1Q9XIZJsa6Lxr5fX8ZVw_oKznvatB）
+name: Daily Refresh
+
+on:
+  schedule:
+    - cron: '0 16 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 触发 daily-cron Edge Function
+        run: |
+          curl -f -X POST "$SUPABASE_URL/functions/v1/daily-cron" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json"
+        env:
+          SUPABASE_URL: https://xyufbgmhjmqdanrblvit.supabase.co
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}

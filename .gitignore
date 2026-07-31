@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+.expo/
+dist/
+web-build/
+.expo-shared/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# native build
+ios/
+android/
+
+# logs
+npm-debug.*
+*.log
+.DS_Store
+
+# supabase local
+supabase/.temp/

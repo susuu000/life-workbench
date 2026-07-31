@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "Susu",
+    "slug": "life-workbench",
+    "scheme": "lifeworkbench",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#2E6F7E"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourorg.lifeworkbench",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2E6F7E"
+      }
+    },
+    "android": {
+      "package": "com.yourorg.lifeworkbench",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2E6F7E"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png",
+      "manifest": {
+"name": "Susu",
+    "short_name": "Susu",
+        "description": "个人生活工作台 · 每天愿意用",
+        "display": "standalone",
+        "orientation": "portrait",
+        "background_color": "#2E6F7E",
+        "theme_color": "#2E6F7E",
+        "start_url": "/",
+        "icons": [
+          {
+            "src": "/assets/icon.png",
+            "sizes": "1024x1024",
+            "type": "image/png",
+            "purpose": "any"
+          }
+        ]
+      }
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

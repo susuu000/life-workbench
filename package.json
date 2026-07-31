@@ -1,0 +1,44 @@
+{
+  "name": "life-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "description": "个人生活工作台 — Expo 单代码库（iOS 原生 App + 网页 PWA），Supabase 云端底座",
+  "main": "expo-router/entry",
+  "scheme": "lifeworkbench",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "build:web": "expo export --platform web",
+    "typecheck": "tsc --noEmit",
+    "eas:build:ios": "eas build --platform ios --profile production",
+    "eas:submit:ios": "eas submit --platform ios --profile production",
+    "supabase:link": "supabase link --project-ref $SUPABASE_PROJECT_REF",
+    "supabase:push": "supabase db push"
+  },
+  "dependencies": {
+    "@react-navigation/bottom-tabs": "^7.0.0",
+    "@react-navigation/native": "^7.0.0",
+    "@supabase/supabase-js": "^2.45.4",
+    "@opentelemetry/api": "^1.9.0",
+    "expo": "~52.0.0",
+    "expo-constants": "~17.0.0",
+    "expo-image-picker": "~16.0.6",
+    "expo-linking": "~7.0.0",
+    "expo-router": "~4.0.0",
+    "expo-status-bar": "~2.0.0",
+    "expo-web-browser": "~14.0.0",
+    "react-native-web": "~0.19.13",
+    "react": "18.3.1",
+    "react-native": "0.76.0",
+    "react-native-safe-area-context": "4.12.0",
+    "react-native-screens": "~4.4.0"
+  },
+  "devDependencies": {
+    "@types/react": "~18.3.12",
+    "eas-cli": "^12.0.0",
+    "supabase": "^1.0.0",
+    "typescript": "~5.6.3"
+  }
+}
