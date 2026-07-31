@@ -2,6 +2,7 @@
   "name": "life-workbench",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.28.2",
   "description": "个人生活工作台 — Expo 单代码库（iOS 原生 App + 网页 PWA），Supabase 云端底座",
   "main": "expo-router/entry",
   "scheme": "lifeworkbench",
