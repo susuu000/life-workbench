@@ -1,0 +1,17 @@
+# Netlify 部署配置（零 basePath 处理，连仓库即上线）
+# 用法：Netlify 导入本仓库 → Build & deploy 自动读取本文件；
+#       在 Site settings → Environment variables 添加：
+#         EXPO_PUBLIC_SUPABASE_URL        = https://xyufbgmhjmqdanrblvit.supabase.co
+#         EXPO_PUBLIC_SUPABASE_ANON_KEY   = 项目 anon key（见 .env.local）
+[build]
+  command = "pnpm build:web"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# SPA 兜底：未知路径回退到 index.html（expo-router 已静态导出各路由 .html）
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

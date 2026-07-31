@@ -191,7 +191,9 @@ supabase functions deploy daily-cron
 3. `Settings → Pages → Build and deployment → Source: GitHub Actions`
 4. push 到 `main` 或手动 Run `Deploy Web PWA` 工作流，即自动构建并发布。
 
-> 若用「项目页」(`<user>.github.io/<repo>`) 部署，请在 `app.json` 的 `web.basePath` 设为 `/<repo>/`；用「用户页」(`<user>.github.io`) / 自定义域名 / Netlify / Cloudflare Pages 则无需处理 basePath。
+> **子路径（base path）已自动处理**：工作流会按仓库类型注入 `app.json → experiments.baseUrl`——「项目页」(`<user>.github.io/<repo>`) 自动填 `/<repo>`，「用户页」(`<user>.github.io`) / 自定义域名则留空（根路径）。同时自动写入 `dist/.nojekyll`，避免 GitHub Pages 默认的 Jekyll 丢弃以下划线开头的 `_expo` 资源目录。**你无需手动改任何配置**。
+>
+> 想用 **Netlify / Cloudflare Pages / Vercel**（均根路径、零子路径烦恼）？直接连仓库或拖 `dist/` 即可——仓库已带 `netlify.toml`（构建命令 `pnpm build:web`、发布目录 `dist`、Node 22），无需任何 base path 处理。
 
 **方式二：本地构建后手动上传**
 ```bash
@@ -290,7 +292,7 @@ life-workbench/
 - 📰 时事新闻（每日 15 条，新华网/人民网）
 - 🤖 AI 前沿（每日 8 条，机器之心/36氪/量子位）
 - 📈 股市信息（行业板块行情）
-- 📚 书影上新（豆瓣/Letterboxd）
+- 📚 书影上新（TMDB 电影，含海报/评分）
 
 ### 我的
 - 📌 收藏归集（按板块分类）
@@ -344,7 +346,7 @@ life-workbench/
 - [x] **书影上新自动抓取（TMDB）** — Letterboxd RSS 被 Cloudflare 403 已弃用，改接 **TMDB API**（电影，含海报/评分）。`TMDB_API_KEY` 已设为 Supabase Secret 并实测拉取 27 部（正在热映/即将上映，`book_movie_new` 保留 45 天）；迁移 `0004` 已放开 `source` 约束并新增 `poster_url`/`rating` 列。
 - [x] **股市行业板块（新浪财经）** — 东方财富服务端调用失败已弃用，改接**新浪财经行业板块**（`money.finance.sina.com.cn` 的 `newFLJK.php`，GBK 解码、按涨跌幅排序），无需密钥，已验证拉取 84 个板块。
 - [x] **AI 前沿新增 GitHub 源** — `AI_SOURCES` 在机器之心/36氪/量子位基础上增加 **GitHub Blog**（`github.blog/feed/`），已实测拉取 6 条（Copilot/Dependabot/供应链安全等）；并修复 RSS 解析器对数值 HTML 实体（如 `&#8217;`）的解码，标题不再带乱码。
-- [x] **Web PWA 构建验证通过** — `pnpm build:web`（`expo export --platform web`）已实测可导出 15 个静态路由到 `dist/`。构建需 **Node 22**（静态渲染阶段 supabase realtime 需要全局 WebSocket）；`app.json` 的 plugins 已移除多余的 `expo-web-browser`（其无 config plugin，会导致 TS 插件加载报错）；已补充依赖 `react-native-web`、`@opentelemetry/api`。
+- [x] **Web PWA 构建 + 部署验证通过** — `pnpm build:web`（`expo export --platform web`）实测可导出 15 个静态路由到 `dist/`。构建需 **Node 22**（静态渲染阶段 supabase realtime 需要全局 WebSocket）；`app.json` 的 plugins 已移除多余的 `expo-web-browser`（其无 config plugin，会导致 TS 插件加载报错）；已补充依赖 `react-native-web`、`@opentelemetry/api`。GitHub Pages「项目页」子路径方案已实测：工作流注入 `experiments.baseUrl=/<repo>` + 写入 `dist/.nojekyll`，本地以 `/<repo>/` 映射 `dist/` 起静态服务验证全部资源 200；`.github/workflows/deploy-web.yml` 已就绪，`netlify.toml` 提供根路径零配置备选。
 - [ ] **Apple 开发者账号信息** — **非必需**：本应用的「手机端桌面版本」走 **Web PWA** 路线（见下方说明），无需 Apple 开发者账号。仅当你要把它做成上架 App Store 的原生 iOS App 时，才需在 `eas.json` 填 Team ID 并付费（$99/年）走 EAS Build/Submit。
 - [ ] **APP 正式图标** — 当前为占位月亮图标，可替换为国漫形象
 - [ ] **手动精选内容源** — 微信/三联/小红书/小宇宙"我的关注"无开放接口，需在 App 内手动添加或由你定期维护
