@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="2732" viewBox="0 0 2048 2732">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f5e6d3"/>
+      <stop offset="100%" stop-color="#e8d5f0"/>
+    </linearGradient>
+    <linearGradient id="moon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#c9a96e"/>
+      <stop offset="100%" stop-color="#b8944f"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="2048" height="2732" fill="url(#bg)"/>
+
+  <!-- 月亮 -->
+  <g transform="translate(1024, 1292.272)">
+    <circle r="245.76" fill="url(#moon)" opacity="0.85"/>
+    <circle cx="86.01599999999999" cy="-61.44" r="184.32" fill="url(#bg)"/>
+  </g>
+
+  <!-- 标题 -->
+  <text x="1024" y="1734.6399999999999" text-anchor="middle"
+        font-family="system-ui, -apple-system, sans-serif"
+        font-size="92" font-weight="300"
+        fill="#3d3226" opacity="0.6">月夕 · 生活台</text>
+</svg>

@@ -1,129 +1,50 @@
 /**
- * 翻页时钟：大号时间卡，默认显示 HH:MM，点击展开秒。
- * 复刻旧版「月夕生活台」的翻牌时钟观感（数字变化时做轻微翻转动画）。
+ * FlipClock - 翻页时钟组件
+ * 
+ * TODO: 完整实现翻页时钟动画效果
+ * 当前为简化占位版本，展示当前时间
  */
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Platform } from 'react-native';
-import { useTheme } from '@/lib/themeRuntime';
-import { Spacing, FontSize } from '@/lib/theme';
 
-function Digit({ value, color }: { value: string; color: string }) {
-  const prev = useRef(value);
-  const anim = useRef(new Animated.Value(0)).current;
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { Colors, FontSize, Spacing, BorderRadius } from '@/lib/theme';
+
+export default function FlipClock() {
+  const [time, setTime] = useState('');
 
   useEffect(() => {
-    if (prev.current !== value) {
-      prev.current = value;
-      anim.setValue(0);
-      Animated.timing(anim, {
-        toValue: 1,
-        duration: 280,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [value, anim]);
-
-  const rotateX = anim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: ['90deg', '0deg', '0deg'],
-  });
+    const tick = () => {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      const s = String(now.getSeconds()).padStart(2, '0');
+      setTime(`${h}:${m}:${s}`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
-    <View style={styles.digitBox}>
-      <Animated.Text
-        style={[
-          styles.digit,
-          { color, transform: [{ rotateX }] },
-        ]}
-      >
-        {value}
-      </Animated.Text>
+    <View style={styles.container}>
+      <Text style={styles.time}>{time}</Text>
     </View>
   );
 }
 
-export default function FlipClock({ onToggle }: { onToggle?: () => void }) {
-  const { colors } = useTheme();
-  const [now, setNow] = useState(new Date());
-  const [showSeconds, setShowSeconds] = useState(false);
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  // 使用本地化时间字符串确保时区正确（避免 SSR 时区偏移）
-  const parts = now.toLocaleTimeString('zh-CN', { hour12: false }).split(':');
-  const hh = parts[0]?.padStart(2, '0') ?? '00';
-  const mm = parts[1]?.padStart(2, '0') ?? '00';
-  const ss = parts[2]?.padStart(2, '0') ?? '00';
-
-  const toggle = () => {
-    setShowSeconds((s) => !s);
-    onToggle?.();
-  };
-
-  return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      onPress={toggle}
-      style={[styles.card, { backgroundColor: colors.primary }]}
-    >
-      <View style={styles.row}>
-        <Digit value={hh[0]} color="#FFFFFF" />
-        <Digit value={hh[1]} color="#FFFFFF" />
-        <Text style={[styles.colon, { color: '#FFFFFF' }]}>:</Text>
-        <Digit value={mm[0]} color="#FFFFFF" />
-        <Digit value={mm[1]} color="#FFFFFF" />
-        {showSeconds && (
-          <>
-            <Text style={[styles.colon, { color: '#FFFFFF' }]}>:</Text>
-            <Digit value={ss[0]} color="#FFFFFF" />
-            <Digit value={ss[1]} color="#FFFFFF" />
-          </>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
-}
-
 const styles = StyleSheet.create({
-  card: {
-    height: 180,
-    borderRadius: 24,
-    justifyContent: 'center',
+  container: {
     alignItems: 'center',
-    marginBottom: Spacing.lg,
-    overflow: 'hidden',
+    paddingVertical: Spacing.lg,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  digitBox: {
-    width: 46,
-    height: 72,
-    marginHorizontal: 2,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  digit: {
-    fontSize: 56,
-    fontWeight: 'bold',
+  time: {
+    fontSize: FontSize.timeHuge,
+    fontFamily: 'Times New Roman',
     color: '#FFFFFF',
-    fontFamily: Platform.OS === 'ios' ? 'Times New Roman' : 'serif',
-  },
-  colon: {
-    fontSize: 52,
-    fontWeight: 'bold',
-    marginHorizontal: 2,
-  },
-  hint: {
-    marginTop: Spacing.sm,
-    fontSize: FontSize.xs,
-    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '200',
+    letterSpacing: 4,
+    textShadowColor: 'rgba(0,0,0,0.15)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
 });

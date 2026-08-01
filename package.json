@@ -1,9 +1,9 @@
 {
   "name": "life-workbench",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "packageManager": "pnpm@10.28.2",
-  "description": "个人生活工作台 — Expo 单代码库（iOS 原生 App + 网页 PWA），Supabase 云端底座",
+  "description": "月夕生活台 v3 — CodeBuddy 风格优化版",
   "main": "expo-router/entry",
   "scheme": "lifeworkbench",
   "scripts": {
@@ -19,6 +19,7 @@
     "supabase:push": "supabase db push"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "2.1.0",
     "@react-navigation/bottom-tabs": "^7.0.0",
     "@react-navigation/native": "^7.0.0",
     "@supabase/supabase-js": "^2.45.4",
@@ -28,6 +29,7 @@
     "expo-image-picker": "~16.0.6",
     "expo-linking": "~7.0.0",
     "expo-router": "~4.0.0",
+    "expo-splash-screen": "~0.29.22",
     "expo-status-bar": "~2.0.0",
     "expo-web-browser": "~14.0.0",
     "react-native-web": "~0.19.13",

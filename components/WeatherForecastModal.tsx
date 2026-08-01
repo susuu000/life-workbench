@@ -1,19 +1,30 @@
 /**
- * 天气弹窗：展示未来 3 天预报（今/明/后），支持切换城市。
- * 数据来自 get-weather 返回的 weather_cache.forecast。
+ * WeatherForecastModal - 天气预报弹窗
+ * 
+ * TODO: 接入完整天气 API 数据
+ * 当前为简化占位版本
  */
-import React from 'react';
+
+import React, { useState } from 'react';
 import {
-  Modal, View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView,
+  View, Text, StyleSheet, TouchableOpacity, Modal, TextInput,
 } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '@/lib/theme';
 
 export interface ForecastDay {
   date: string;
-  temp_max: number;
-  temp_min: number;
   condition: string;
-  icon_code: string;
+  temp_high: number;
+  temp_low: number;
+  icon?: string;
+}
+
+interface WeatherForecastModalProps {
+  visible: boolean;
+  city: string;
+  forecast: ForecastDay[];
+  onChangeCity: (city: string) => void;
+  onClose: () => void;
 }
 
 function weatherEmoji(condition: string): string {
@@ -24,99 +35,163 @@ function weatherEmoji(condition: string): string {
   return '🌤️';
 }
 
-function weekdayLabel(dateStr: string): string {
-  const d = new Date(dateStr);
-  const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-  return days[d.getDay()];
-}
-
 export default function WeatherForecastModal({
-  visible,
-  city,
-  forecast,
-  onChangeCity,
-  onClose,
-}: {
-  visible: boolean;
-  city: string;
-  forecast: ForecastDay[];
-  onChangeCity: (city: string) => void;
-  onClose: () => void;
-}) {
+  visible, city, forecast, onChangeCity, onClose,
+}: WeatherForecastModalProps) {
+  const [editCity, setEditCity] = useState(city);
+
+  const handleSubmit = () => {
+    const trimmed = editCity.trim();
+    if (trimmed && trimmed !== city) {
+      onChangeCity(trimmed);
+    }
+  };
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.mask}>
-        <View style={styles.box}>
-          <View style={styles.head}>
-            <Text style={styles.title}>未来三天天气</Text>
-            <TouchableOpacity onPress={onClose} activeOpacity={0.7}>
-              <Text style={styles.close}>✕</Text>
+      <TouchableOpacity style={styles.mask} activeOpacity={1} onPress={onClose}>
+        <View style={styles.box} onStartShouldSetResponder={() => true}>
+          <Text style={styles.title}>🌤️ 天气预报</Text>
+
+          {/* 城市切换 */}
+          <View style={styles.cityRow}>
+            <TextInput
+              style={styles.cityInput}
+              value={editCity}
+              onChangeText={setEditCity}
+              onSubmitEditing={handleSubmit}
+              placeholder="输入城市名"
+              placeholderTextColor={Colors.textMuted}
+            />
+            <TouchableOpacity style={styles.cityBtn} onPress={handleSubmit}>
+              <Text style={styles.cityBtnText}>切换</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.cityRow}>
-            <Text style={styles.cityLabel}>城市</Text>
-            <TextInput
-              style={styles.cityInput}
-              value={city}
-              placeholder="如：宁波"
-              placeholderTextColor={Colors.textMuted}
-              onChangeText={onChangeCity}
-            />
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scroll}>
-            {forecast.length === 0 ? (
-              <Text style={styles.empty}>暂无预报数据</Text>
-            ) : (
-              forecast.map((d, i) => (
-                <View key={d.date} style={styles.dayCard}>
-                  <Text style={styles.dayName}>{i === 0 ? '今天' : weekdayLabel(d.date)}</Text>
-                  <Text style={styles.dayIcon}>{weatherEmoji(d.condition)}</Text>
-                  <Text style={styles.dayCond}>{d.condition}</Text>
-                  <Text style={styles.dayTemp}>
-                    {d.temp_max}° / {d.temp_min}°
+          {/* 预报列表 */}
+          {forecast.length === 0 ? (
+            <Text style={styles.empty}>暂无天气预报数据</Text>
+          ) : (
+            <View style={styles.forecastList}>
+              {forecast.map((day, i) => (
+                <View key={day.date || i} style={styles.forecastItem}>
+                  <Text style={styles.forecastDate}>{day.date}</Text>
+                  <Text style={styles.forecastIcon}>
+                    {day.icon ? day.icon : weatherEmoji(day.condition)}
                   </Text>
-                  <Text style={styles.dayDate}>{d.date?.slice(5)}</Text>
+                  <Text style={styles.forecastTemp}>
+                    {day.temp_low}° ~ {day.temp_high}°
+                  </Text>
+                  <Text style={styles.forecastCond}>{day.condition}</Text>
                 </View>
-              ))
-            )}
-          </ScrollView>
+              ))}
+            </View>
+          )}
+
+          <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+            <Text style={styles.closeText}>关闭</Text>
+          </TouchableOpacity>
         </View>
-      </View>
+      </TouchableOpacity>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   mask: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
   },
   box: {
-    width: '100%', backgroundColor: Colors.surface, borderRadius: BorderRadius.lg,
-    padding: Spacing.xl, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    maxHeight: '80%',
   },
-  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
-  title: { fontSize: FontSize.lg, fontWeight: 'bold', color: Colors.textPrimary },
-  close: { fontSize: 20, color: Colors.textMuted, paddingHorizontal: Spacing.sm },
-  cityRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md, gap: Spacing.sm },
-  cityLabel: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  title: {
+    fontSize: FontSize.lg,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+  },
+  cityRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
   cityInput: {
-    flex: 1, backgroundColor: Colors.background, borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
-    fontSize: FontSize.base, color: Colors.textPrimary,
+    flex: 1,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    fontSize: FontSize.base,
+    color: Colors.textPrimary,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  scroll: { flexDirection: 'row' },
-  dayCard: {
-    width: 110, backgroundColor: Colors.background, borderRadius: BorderRadius.md,
-    padding: Spacing.lg, marginRight: Spacing.md, alignItems: 'center',
-    borderWidth: 1, borderColor: Colors.border,
+  cityBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.lg,
+    justifyContent: 'center',
   },
-  dayName: { fontSize: FontSize.sm, fontWeight: 'bold', color: Colors.primary, marginBottom: Spacing.sm },
-  dayIcon: { fontSize: 32, marginBottom: Spacing.xs },
-  dayCond: { fontSize: FontSize.xs, color: Colors.textSecondary, marginBottom: Spacing.xs },
-  dayTemp: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textPrimary },
-  dayDate: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
-  empty: { fontSize: FontSize.sm, color: Colors.textMuted, padding: Spacing.lg },
+  cityBtnText: {
+    color: '#FFFFFF',
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+  },
+  empty: {
+    textAlign: 'center',
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+    paddingVertical: Spacing.xl,
+  },
+  forecastList: {
+    gap: Spacing.sm,
+  },
+  forecastItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.md,
+  },
+  forecastDate: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    width: 60,
+  },
+  forecastIcon: {
+    fontSize: 24,
+  },
+  forecastTemp: {
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  forecastCond: {
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+  },
+  closeBtn: {
+    marginTop: Spacing.lg,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.full,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  closeText: {
+    fontSize: FontSize.base,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
 });

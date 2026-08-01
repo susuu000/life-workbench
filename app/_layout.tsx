@@ -1,164 +1,331 @@
-import { Stack, useRouter, useSegments } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { View, Text, StyleSheet } from 'react-native';
-import React, { useEffect, useState } from 'react';
-import { supabase, getCurrentUserId } from '@/lib/supabase';
-import { Colors } from '@/lib/theme';
-import { ThemeProvider, useTheme, applyWebFontFamily } from '@/lib/themeRuntime';
-import EdgeSwipe from '@/components/EdgeSwipe';
-
 /**
- * 根布局：全局状态栏 + 认证守卫 + 导航壳 + 运行时主题
- * 未登录 → 自动重定向到 /(auth)/login
- * 已登录 → 显示底部三 Tab（首页/发现/我的）
+ * 月夕生活台 · 根布局
+ *
+ * 全局 Provider 集成入口：
+ * - DarkModeProvider    暗色模式 + 系统主题跟随
+ * - SafeAreaProvider    安全区域适配
+ * - SyncEngine          离线队列 + 多端同步
+ * - SidebarV3           侧边栏导航
+ * - ErrorBoundary       全局错误边界
+ * - SplashScreen        启动画面
+ * - 离线检测             断网提示
+ *
+ * Provider 嵌套顺序（从外到内）：
+ * 1. SafeAreaProvider      — 最外层，供所有组件访问 safe-area insets
+ * 2. DarkModeProvider      — 主题上下文，所有组件均可感知暗/亮模式
+ * 3. ErrorBoundary         — 兜底捕获未处理异常
+ * 4. SyncProvider          — 离线队列 + 自动同步
+ * 5. Sidebar + Stack       — 导航骨架
  */
-export default function RootLayout() {
-  return (
-    <ThemeProvider>
-      <AppShell />
-    </ThemeProvider>
-  );
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, Platform, StatusBar, TouchableOpacity } from 'react-native';
+import { Stack, useRouter, useSegments } from 'expo-router';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as SplashScreen from 'expo-splash-screen';
+
+import { DarkModeProvider, useDarkMode } from '@/lib/DarkModeProvider';
+import { SyncEngine, useOnlineStatus, SyncIndicator } from '@/lib/sync-manager';
+import SidebarV3 from '@/components/SidebarV3';
+import { Space, ZIndex } from '@/lib/design-tokens';
+import { Colors } from '@/lib/theme';
+
+// 保持启动画面直到根布局渲染完毕
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// ===== 错误边界 =====
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
 }
 
-function AppShell() {
-  const [session, setSession] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const segments = useSegments();
-  const router = useRouter();
-  const { setOverrides, fontFamilyCss } = useTheme();
-
-  useEffect(() => {
-    // 获取初始会话
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      setLoading(false);
-    });
-
-    // 监听认证状态变化
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, s) => {
-        setSession(s);
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // 加载个性化主题（user_settings）
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      const uid = await getCurrentUserId();
-      if (!uid) return;
-      const { data } = await supabase
-        .from('user_settings')
-        .select('theme_color, font_family, font_size, density')
-        .eq('user_id', uid)
-        .maybeSingle();
-      if (active && data) {
-        setOverrides({
-          themeColor: data.theme_color,
-          fontFamily: data.font_family,
-          fontSize: data.font_size,
-          density: data.density,
-        });
-        applyWebFontFamily(fontFamilyCss);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [session, setOverrides, fontFamilyCss]);
-
-  // 认证守卫：未登录且不在 auth 页面 → 跳转登录
-  useEffect(() => {
-    if (loading) return;
-    const inAuthGroup = segments[0] === '(auth)';
-    if (!session && !inAuthGroup) {
-      router.replace('/(auth)/login');
-    }
-    if (session && inAuthGroup) {
-      // Web 静态导出下 /(tabs)/index 可能触发 "Unmatched Route"，
-      // 统一用根路径 /（expo-router 会自动渲染 tabs/index 内容）
-      router.replace('/');
-    }
-  }, [session, loading, segments]);
-
-  if (loading) {
-    return (
-      <View style={styles.loading}>
-        <Text style={styles.loadingText}>Susu</Text>
-      </View>
-    );
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  ErrorBoundaryState
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
   }
 
-  return (
-    <>
-      <StatusBar style="light" backgroundColor={Colors.primary} />
-      <View style={styles.container}>
-        <EdgeSwipe>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)/module/[key]" options={{ title: '界面', headerShown: false }} />
-        </Stack>
-        </EdgeSwipe>
-        {/* 云端连接状态条 */}
-        <CloudStatusBadge />
-      </View>
-    </>
-  );
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('[月夕生活台] 未捕获错误:', error, info);
+  }
+
+  handleReset = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={errorStyles.container}>
+          <Text style={errorStyles.emoji}>🪷</Text>
+          <Text style={errorStyles.title}>出了点小问题</Text>
+          <Text style={errorStyles.message}>
+            {this.state.error?.message || '应用遇到了未知错误'}
+          </Text>
+          <TouchableOpacity style={errorStyles.button} onPress={this.handleReset}>
+            <Text style={errorStyles.buttonText}>重试</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
 }
 
-/** 云端状态指示器 */
-function CloudStatusBadge() {
-  const [status, setStatus] = useState<'connected' | 'disconnected'>('connected');
+const errorStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F0E8',
+    padding: 40,
+    gap: 12,
+  },
+  emoji: { fontSize: 64, marginBottom: 8 },
+  title: { fontSize: 20, fontWeight: '700', color: '#2C2416' },
+  message: { fontSize: 14, color: '#8C8070', textAlign: 'center', lineHeight: 20 },
+  button: {
+    marginTop: 20,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    backgroundColor: '#2E6F7E',
+    borderRadius: 999,
+  },
+  buttonText: { color: '#FFFFFF', fontWeight: '600', fontSize: 15 },
+});
 
-  useEffect(() => {
-    let mounted = true;
-    async function check() {
-      try {
-        const { error } = await supabase.from('profiles').select('id').limit(1);
-        if (mounted) setStatus(error ? 'disconnected' : 'connected');
-      } catch {
-        if (mounted) setStatus('disconnected');
-      }
-    }
-    check();
-    const id = setInterval(check, 30000); // 每30秒检测
-    return () => {
-      mounted = false;
-      clearInterval(id);
-    };
-  }, []);
+// ===== 离线提示条 =====
+function OfflineBanner() {
+  const online = useOnlineStatus();
+
+  if (online) return null;
 
   return (
-    <View style={[styles.badge, status === 'disconnected' && styles.badgeError]}>
-      <View style={[styles.dot, status === 'connected' ? styles.dotConnected : styles.dotDisconnected]} />
-      <Text style={styles.badgeText}>
-        {status === 'connected' ? '云端已连接' : '云端已断开'}
-      </Text>
+    <View style={offlineStyles.banner}>
+      <Text style={offlineStyles.text}>📡 网络已断开 — 数据将在恢复连接后自动同步</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  loading: {
+const offlineStyles = StyleSheet.create({
+  banner: {
+    backgroundColor: '#C04830',
+    paddingVertical: 6,
+    paddingHorizontal: Space.lg,
+    alignItems: 'center',
+  },
+  text: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+});
+
+// ===== 同步 Provider（轻量包装）=====
+function SyncProvider({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    // 页面加载时尝试同步离线队列
+    const engine = SyncEngine.getInstance();
+    if (engine.getPendingCount() > 0) {
+      engine.sync();
+    }
+
+    // 定时检查（每 30 秒）
+    const interval = setInterval(() => {
+      if (engine.getPendingCount() > 0 && engine.status === 'idle') {
+        engine.sync();
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return <>{children}</>;
+}
+
+// ===== 根导航栈 =====
+function RootNavigator() {
+  const router = useRouter();
+  const segments = useSegments();
+  const { isDark, colors } = useDarkMode();
+
+  // ---- 侧边栏状态 ----
+  const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [customSections, setCustomSections] = useState<Array<{ id: string; name: string; icon?: string }>>([]);
+  const [moduleKeys, setModuleKeys] = useState<string[]>([]);
+
+  // 加载自定义板块
+  useEffect(() => {
+    (async () => {
+      try {
+        const { getCurrentUserId, supabase } = await import('@/lib/supabase');
+        const uid = await getCurrentUserId();
+        if (!uid) return;
+        const { data } = await supabase
+          .from('custom_modules')
+          .select('*')
+          .eq('user_id', uid);
+        if (data) {
+          setCustomSections(data.map((m: any) => ({ id: m.id, name: m.name, icon: m.icon })));
+        }
+        // 加载用户启用的板块
+        const { data: settings } = await supabase
+          .from('user_settings')
+          .select('module_keys')
+          .eq('user_id', uid)
+          .maybeSingle();
+        if (settings?.module_keys) {
+          setModuleKeys(settings.module_keys);
+        }
+      } catch {}
+    })();
+  }, []);
+
+  // 同步 StatusBar
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content');
+    }
+  }, [isDark]);
+
+  // 隐藏启动画面
+  const onLayoutRootView = useCallback(async () => {
+    await SplashScreen.hideAsync();
+  }, []);
+
+  // 判断当前是否在 tabs 页面
+  const isTabsScreen = segments.length === 0 ||
+    (segments.length === 1 && ['index', 'discover', 'mine'].includes(segments[0]));
+
+  // 侧边栏导航选择
+  const handleSidebarSelect = useCallback((key: string) => {
+    if (key === 'home') {
+      router.push('/(tabs)');
+    } else {
+      router.push(`/module/${key}`);
+    }
+    // 移动端关闭侧边栏
+    if (Platform.OS !== 'web') {
+      setSidebarVisible(false);
+    }
+  }, [router]);
+
+  return (
+    <View style={[{ flex: 1, backgroundColor: colors.background }]} onLayout={onLayoutRootView}>
+      {/* 离线提示条 */}
+      <OfflineBanner />
+
+      {/* 同步指示器（右上角浮动） */}
+      <View style={rootStyles.syncContainer}>
+        <SyncIndicator />
+      </View>
+
+      {/* 主内容区：侧边栏 + Stack */}
+      <View style={rootStyles.mainArea}>
+        {/* 桌面端：固定侧边栏；移动端：Modal 侧边栏 */}
+        {isTabsScreen && Platform.OS === 'web' && (
+          <View style={rootStyles.sidebarWrapper}>
+            <SidebarV3
+              visible={true}
+              onClose={() => {}}
+              onSelect={handleSidebarSelect}
+              custom={customSections}
+              onCustomChange={setCustomSections}
+              moduleKeys={moduleKeys as any}
+            />
+          </View>
+        )}
+
+        {/* 移动端侧边栏切换按钮 */}
+        {isTabsScreen && Platform.OS !== 'web' && (
+          <TouchableOpacity
+            style={rootStyles.hamburger}
+            onPress={() => setSidebarVisible(true)}
+          >
+            <Text style={{ fontSize: 22, color: colors.textPrimary }}>☰</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* 移动端侧边栏 Modal */}
+        {Platform.OS !== 'web' && (
+          <SidebarV3
+            visible={sidebarVisible}
+            onClose={() => setSidebarVisible(false)}
+            onSelect={handleSidebarSelect}
+            custom={customSections}
+            onCustomChange={setCustomSections}
+            moduleKeys={moduleKeys as any}
+          />
+        )}
+
+        {/* 页面栈 */}
+        <View style={rootStyles.stackWrapper}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="module/[key]"
+              options={{
+                presentation: 'card',
+                animation: 'slide_from_right',
+              }}
+            />
+          </Stack>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ===== 根组件 =====
+export default function RootLayout() {
+  return (
+    <SafeAreaProvider>
+      <DarkModeProvider>
+        <ErrorBoundary>
+          <SyncProvider>
+            <RootNavigator />
+          </SyncProvider>
+        </ErrorBoundary>
+      </DarkModeProvider>
+    </SafeAreaProvider>
+  );
+}
+
+// ===== 样式 =====
+const rootStyles = StyleSheet.create({
+  mainArea: {
     flex: 1,
-    backgroundColor: Colors.primary,
+    flexDirection: 'row',
+  },
+  sidebarWrapper: {
+    width: Platform.OS === 'web' ? 220 : 260,
+    zIndex: ZIndex.drawer,
+  },
+  stackWrapper: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  syncContainer: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 54 : 12,
+    right: Space.lg,
+    zIndex: ZIndex.sticky,
+  },
+  hamburger: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 8,
+    left: Space.lg,
+    zIndex: ZIndex.sticky,
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  loadingText: { fontSize: 32, color: '#FFFFFF', fontWeight: 'bold', letterSpacing: 8 },
-  badge: {
-    // Web/PWA 模式下不使用绝对定位（会与 Tab 栏重叠），
-    // 改由各页面自行决定是否展示云端状态
-    display: 'none',
-  },
-  badgeError: { backgroundColor: '#FFF5F5' },
-  dot: { width: 6, height: 6, borderRadius: 3, marginRight: 4 },
-  dotConnected: { backgroundColor: Colors.success },
-  dotDisconnected: { backgroundColor: Colors.error },
-  badgeText: { fontSize: 10, color: Colors.textMuted },
 });

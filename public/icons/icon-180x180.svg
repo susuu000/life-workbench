@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f5e6d3"/>
+      <stop offset="100%" stop-color="#e8d5f0"/>
+    </linearGradient>
+    <linearGradient id="moon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#c9a96e"/>
+      <stop offset="100%" stop-color="#b8944f"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2.8125" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 背景圆角矩形 -->
+  <rect x="1.40625" y="1.40625" width="177.1875" height="177.1875" rx="31.640625" fill="url(#bg)"/>
+
+  <!-- 月亮 -->
+  <g filter="url(#glow)" transform="translate(90, 77.34375)">
+    <circle cx="0" cy="0" r="35.15625" fill="url(#moon)" opacity="0.9"/>
+    <!-- 月牙缺口 -->
+    <circle cx="12.3046875" cy="-8.7890625" r="26.3671875" fill="url(#bg)"/>
+  </g>
+
+  <!-- 星星 -->
+  <g fill="#8b5cf6" opacity="0.6">
+    <circle cx="56.25" cy="116.015625" r="1.40625"/>
+    <circle cx="123.046875" cy="105.46875" r="1.0546875"/>
+    <circle cx="45.703125" cy="133.59375" r="0.87890625"/>
+    <circle cx="133.59375" cy="130.078125" r="0.703125"/>
+    <circle cx="70.3125" cy="140.625" r="0.703125"/>
+    <circle cx="112.5" cy="147.65625" r="0.52734375"/>
+  </g>
+
+  <!-- 文字：夕 -->
+  <text x="90" y="152.9296875" text-anchor="middle"
+        font-family="system-ui, -apple-system, sans-serif"
+        font-size="19.6875" font-weight="300"
+        fill="#3d3226" opacity="0.7">夕</text>
+</svg>

@@ -1,109 +1,131 @@
 /**
- * 日历弹窗：点击首页日期打开，展示当月日历（高亮今天），可翻月。
- * 复刻旧版「月夕生活台」的日历入口。
+ * CalendarModal - 日历弹窗组件
+ * 
+ * TODO: 完整实现日历打卡视图
+ * 当前为简化占位版本
  */
-import React, { useState } from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '@/lib/theme';
 
-const HOLIDAYS: Record<string, string> = {
-  '2026-01-01': '元旦', '2026-02-17': '春节', '2026-02-18': '春节', '2026-04-04': '清明',
-  '2026-04-05': '清明', '2026-05-01': '劳动节', '2026-06-19': '端午', '2026-09-25': '中秋',
-  '2026-10-01': '国庆', '2026-10-02': '国庆', '2026-10-03': '国庆',
-};
+interface CalendarModalProps {
+  visible: boolean;
+  onClose: () => void;
+}
 
-function renderGrid(year: number, month: number) {
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+export default function CalendarModal({ visible, onClose }: CalendarModalProps) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const firstDay = new Date(year, month - 1, 1).getDay();
+  const daysInMonth = new Date(year, month, 0).getDate();
+
   const cells: (number | null)[] = [];
   for (let i = 0; i < firstDay; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-  return cells;
-}
-
-export default function CalendarModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const today = new Date();
-  const [year, setYear] = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth());
-
-  const cells = renderGrid(year, month);
-  const ym = (d: number) => `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-  const isToday = (d: number) => d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-
-  const shift = (delta: number) => {
-    let m = month + delta;
-    let y = year;
-    if (m < 0) { m = 11; y--; }
-    if (m > 11) { m = 0; y++;; }
-    setMonth(m); setYear(y);
-  };
 
   const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+  const today = now.getDate();
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.mask}>
-        <View style={styles.box}>
-          <View style={styles.head}>
-            <TouchableOpacity onPress={() => shift(-1)} activeOpacity={0.7}>
-              <Text style={styles.nav}>‹</Text>
-            </TouchableOpacity>
-            <Text style={styles.title}>{year}年{month + 1}月</Text>
-            <TouchableOpacity onPress={() => shift(1)} activeOpacity={0.7}>
-              <Text style={styles.nav}>›</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={{ marginLeft: 'auto' }}>
-              <Text style={styles.close}>✕</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.weekRow}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.mask} activeOpacity={1} onPress={onClose}>
+        <View style={styles.box} onStartShouldSetResponder={() => true}>
+          <Text style={styles.title}>
+            {year} 年 {month} 月
+          </Text>
+          <View style={styles.grid}>
             {weekdays.map((w) => (
-              <Text key={w} style={styles.weekDay}>{w}</Text>
+              <Text key={w} style={styles.weekday}>{w}</Text>
+            ))}
+            {cells.map((d, i) => (
+              <View key={i} style={styles.cell}>
+                {d !== null && (
+                  <View style={[styles.dot, d === today && styles.dotToday]}>
+                    <Text style={[styles.day, d === today && styles.dayToday]}>{d}</Text>
+                  </View>
+                )}
+              </View>
             ))}
           </View>
-
-          <View style={styles.grid}>
-            {cells.map((d, i) => {
-              if (d == null) return <View key={i} style={styles.cell} />;
-              const hol = HOLIDAYS[ym(d)];
-              return (
-                <View key={i} style={[styles.cell, isToday(d) && styles.cellToday]}>
-                  <Text style={[styles.dayNum, isToday(d) && styles.dayNumToday]}>{d}</Text>
-                  {hol ? <Text style={styles.hol}>{hol}</Text> : null}
-                </View>
-              );
-            })}
-          </View>
+          <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+            <Text style={styles.closeText}>关闭</Text>
+          </TouchableOpacity>
         </View>
-      </View>
+      </TouchableOpacity>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   mask: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center',
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: Spacing.xl,
   },
   box: {
-    width: '100%', backgroundColor: Colors.surface, borderRadius: BorderRadius.lg,
-    padding: Spacing.xl, borderWidth: 1, borderColor: Colors.border,
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    alignItems: 'center',
   },
-  head: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md },
-  nav: { fontSize: 26, color: Colors.primary, paddingHorizontal: Spacing.md },
-  title: { fontSize: FontSize.lg, fontWeight: 'bold', color: Colors.textPrimary },
-  close: { fontSize: 20, color: Colors.textMuted, paddingHorizontal: Spacing.sm },
-  weekRow: { flexDirection: 'row', marginBottom: Spacing.sm },
-  weekDay: { flex: 1, textAlign: 'center', fontSize: FontSize.xs, color: Colors.textMuted },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  title: {
+    fontSize: FontSize.lg,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginBottom: Spacing.lg,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    width: '100%',
+  },
+  weekday: {
+    width: '14.28%',
+    textAlign: 'center',
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    marginBottom: Spacing.xs,
+  },
   cell: {
-    width: '14.28%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center',
+    width: '14.28%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cellToday: {
-    backgroundColor: Colors.primary + '18', borderRadius: BorderRadius.sm,
+  dot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  dayNum: { fontSize: FontSize.sm, color: Colors.textPrimary },
-  dayNumToday: { color: Colors.primary, fontWeight: 'bold' },
-  hol: { fontSize: 9, color: Colors.dianHong },
+  dotToday: {
+    backgroundColor: Colors.primary,
+  },
+  day: {
+    fontSize: FontSize.sm,
+    color: Colors.textPrimary,
+  },
+  dayToday: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  closeBtn: {
+    marginTop: Spacing.lg,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+  },
+  closeText: {
+    color: '#FFFFFF',
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+  },
 });
