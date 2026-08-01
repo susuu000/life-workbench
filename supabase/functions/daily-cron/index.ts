@@ -5,9 +5,11 @@ import {
   refreshNews,
   refreshAiFrontier,
   refreshAiInsights,
+  refreshAiKnowledge,
   refreshListening,
   refreshBookMovie,
   refreshStocks,
+  refreshSocialMedia,
 } from '../_shared/jobs.ts';
 import { refreshWeather } from '../_shared/weather.ts';
 
@@ -28,9 +30,11 @@ serve(async (req) => {
   await run('news', () => refreshNews(sb));
   await run('ai_frontier', () => refreshAiFrontier(sb));
   await run('ai_insights', () => refreshAiInsights(sb));
+  await run('ai_knowledge', () => refreshAiKnowledge(sb));
   await run('listening', () => refreshListening(sb));
   await run('bookmovie', () => refreshBookMovie(sb));
   await run('stocks', () => refreshStocks(sb));
+  await run('social_media', () => refreshSocialMedia(sb));
 
   // 天气：默认宁波 + 各用户设置中的城市
   try {

@@ -12,7 +12,7 @@ serve(async (req) => {
     const city = url.searchParams.get('city') || '宁波';
     const sb = getSupabase();
 
-    // 先看缓存
+    // 先看缓存（30 分钟内）
     const { data: cached } = await sb
       .from('weather_cache')
       .select('*')
@@ -25,6 +25,12 @@ serve(async (req) => {
     const data = await refreshWeather(sb, city);
     return json({ ok: true, cached: false, data });
   } catch (e) {
-    return json({ ok: false, error: (e as Error).message }, 500);
+    const msg = (e as Error).message;
+    console.error('[get-weather] 错误:', msg);
+    // 区分错误类型返回合适的状态码
+    if (msg.includes('未设置')) return json({ ok: false, error: msg }, 400);
+    if (msg.includes('未找到城市')) return json({ ok: false, error: msg }, 400);
+    if (msg.includes('HTTP 4')) return json({ ok: false, error: msg }, 502);
+    return json({ ok: false, error: msg }, 500);
   }
 });

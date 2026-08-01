@@ -9,7 +9,7 @@ import {
   RefreshControl, Linking, Alert, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { supabase, getCurrentUserId } from '@/lib/supabase';
+import { supabase, getCurrentUserId, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { Colors, Spacing, FontSize, BorderRadius } from '@/lib/theme';
 import type { SocialMediaRec } from '@/lib/types';
 
@@ -57,6 +57,19 @@ export default function SocialMediaDetailScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
+    // 触发云端内容刷新
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/daily-cron`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ triggered_by: 'social_media_refresh' }),
+      });
+    } catch { /* 忽略错误 */ }
+    // 等待一小段时间让 Edge Function 写入数据
+    await new Promise(r => setTimeout(r, 1500));
     await loadData();
     setRefreshing(false);
   };
@@ -170,6 +183,11 @@ export default function SocialMediaDetailScreen() {
                   <Text style={styles.platformText}>{PLATFORM_LABEL[item.platform]}</Text>
                 </View>
               </View>
+              {item.source_url ? (
+                <TouchableOpacity style={styles.aesLink} onPress={() => openSource(item.source_url)} activeOpacity={0.7}>
+                  <Text style={styles.sourceText}>查看原文 →</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           )) : <Text style={styles.empty}>暂无审美搭建内容</Text>
         )}
@@ -323,6 +341,9 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   aesTitle: { fontSize: FontSize.base, fontWeight: '600', color: Colors.textPrimary, flex: 1, marginRight: Spacing.sm },
+  aesLink: {
+    paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md,
+  },
 
   empty: {
     textAlign: 'center',

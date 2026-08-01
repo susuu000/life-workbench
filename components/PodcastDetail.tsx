@@ -106,6 +106,42 @@ export default function PodcastDetailScreen() {
     setShowAdd(false);
   };
 
+  // ---- 删除关注播客 ----
+  const removeFollow = (name: string) => {
+    Alert.alert('确认删除', `确定要移除「${name}」吗？`, [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '删除',
+        style: 'destructive',
+        onPress: () => {
+          setFollows(prev => prev.filter(f => f.name !== name));
+        },
+      },
+    ]);
+  };
+
+  // ---- 删除热榜条目 ----
+  const removeHotItem = async (item: PodcastItem) => {
+    Alert.alert('确认删除', `确定要删除「${item.episode_title || item.name}」吗？`, [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '删除',
+        style: 'destructive',
+        onPress: async () => {
+          const { error } = await supabase
+            .from('podcast_items')
+            .delete()
+            .eq('id', item.id);
+          if (!error) {
+            setHotItems(prev => prev.filter(h => h.id !== item.id));
+          } else {
+            Alert.alert('删除失败', error.message);
+          }
+        },
+      },
+    ]);
+  };
+
   // ---- 热榜按周分组 ----
   const groupedByWeek = hotItems.reduce<Record<string, PodcastItem[]>>((acc, item) => {
     const key = item.week_of || '未分组';
@@ -140,8 +176,19 @@ export default function PodcastDetailScreen() {
               <Text style={styles.weekTitle}>📅 第 {week} 周</Text>
               {groupedByWeek[week].map(item => (
                 <View key={item.id} style={styles.hotCard}>
-                  <Text style={styles.podcastName}>{item.name}</Text>
-                  <Text style={styles.episodeTitle}>{item.episode_title}</Text>
+                  <View style={styles.hotCardHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.podcastName}>{item.name}</Text>
+                      <Text style={styles.episodeTitle}>{item.episode_title}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.deleteBtn}
+                      onPress={() => removeHotItem(item)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.deleteBtnText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
                   {item.summary ? (
                     <Text style={styles.summary}>{item.summary}</Text>
                   ) : null}
@@ -170,15 +217,24 @@ export default function PodcastDetailScreen() {
                     <Text style={styles.followUpdateMuted}>暂无更新</Text>
                   )}
                 </View>
-                <TouchableOpacity
-                  style={[styles.followBtn, !f.following && styles.followBtnOff]}
-                  onPress={() => toggleFollow(f.name)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.followBtnText}>
-                    {f.following ? '已关注' : '取消关注'}
-                  </Text>
-                </TouchableOpacity>
+                <View style={styles.followActions}>
+                  <TouchableOpacity
+                    style={[styles.followBtn, !f.following && styles.followBtnOff]}
+                    onPress={() => toggleFollow(f.name)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.followBtnText}>
+                      {f.following ? '已关注' : '取消关注'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deleteBtn}
+                    onPress={() => removeFollow(f.name)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.deleteBtnText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
 
@@ -317,6 +373,15 @@ const styles = StyleSheet.create({
   },
   followBtnOff: { backgroundColor: Colors.border },
   followBtnText: { fontSize: FontSize.xs, color: '#FFFFFF', fontWeight: '600' },
+  followActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+
+  /* 删除按钮 */
+  deleteBtn: {
+    width: 28, height: 28, borderRadius: BorderRadius.full,
+    backgroundColor: Colors.error + '15', alignItems: 'center', justifyContent: 'center',
+  },
+  deleteBtnText: { fontSize: 14, color: Colors.error, fontWeight: 'bold' },
+  hotCardHeader: { flexDirection: 'row', alignItems: 'flex-start' },
 
   /* 添加播客 */
   addBtn: {

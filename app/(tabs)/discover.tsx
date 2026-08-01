@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, FontSize, BorderRadius } from '@/lib/theme';
-import { supabase, getCurrentUserId } from '@/lib/supabase';
+import { supabase, getCurrentUserId, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import type {
   NewsItem,
   AIFrontierItem,
@@ -168,28 +168,65 @@ function ActionButtons({
 export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<DiscoverTab>('news');
+  const [refreshingContent, setRefreshingContent] = useState(false);
+
+  // 触发云端内容刷新（调用 daily-cron）
+  const triggerContentRefresh = async () => {
+    setRefreshingContent(true);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/daily-cron`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ triggered_by: 'manual_refresh' }),
+      });
+      if (res.ok) {
+        Alert.alert('刷新成功', '内容正在更新中，请稍后下拉刷新查看');
+      } else {
+        Alert.alert('刷新失败', `服务器返回 ${res.status}`);
+      }
+    } catch (e) {
+      Alert.alert('刷新失败', '网络错误，请检查连接');
+    } finally {
+      setRefreshingContent(false);
+    }
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* 顶部固定分栏标签栏 */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.tabScroll}
-        contentContainerStyle={styles.tabContent}
-      >
-        {TABS.map((t) => (
-          <TouchableOpacity
-            key={t.key}
-            style={[styles.tabChip, activeTab === t.key && styles.tabChipActive]}
-            onPress={() => setActiveTab(t.key)}
-          >
-            <Text style={[styles.tabLabel, activeTab === t.key && styles.tabLabelActive]}>
-              {t.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      {/* 顶部固定分栏标签栏 + 全局刷新 */}
+      <View style={styles.tabRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.tabScroll}
+          contentContainerStyle={styles.tabContent}
+        >
+          {TABS.map((t) => (
+            <TouchableOpacity
+              key={t.key}
+              style={[styles.tabChip, activeTab === t.key && styles.tabChipActive]}
+              onPress={() => setActiveTab(t.key)}
+            >
+              <Text style={[styles.tabLabel, activeTab === t.key && styles.tabLabelActive]}>
+                {t.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+        <TouchableOpacity
+          style={styles.globalRefreshBtn}
+          onPress={triggerContentRefresh}
+          disabled={refreshingContent}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.globalRefreshText}>
+            {refreshingContent ? '⏳' : '🔄'} 刷新内容
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* 内容区（按 Tab 切换，均支持下拉刷新） */}
       <View style={styles.content}>
@@ -515,6 +552,11 @@ const styles = StyleSheet.create({
   },
   tabScroll: {
     maxHeight: 52,
+    flex: 1,
+  },
+  tabRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   tabContent: {
     paddingHorizontal: Spacing.lg,
@@ -661,6 +703,20 @@ const styles = StyleSheet.create({
   stockDate: {
     fontSize: FontSize.xs,
     color: Colors.textMuted,
+  },
+
+  /* 全局刷新按钮 */
+  globalRefreshBtn: {
+    marginRight: Spacing.lg,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  globalRefreshText: {
+    fontSize: FontSize.xs,
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
 });
 

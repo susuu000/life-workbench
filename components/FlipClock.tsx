@@ -52,9 +52,11 @@ export default function FlipClock({ onToggle }: { onToggle?: () => void }) {
     return () => clearInterval(id);
   }, []);
 
-  const hh = String(now.getHours()).padStart(2, '0');
-  const mm = String(now.getMinutes()).padStart(2, '0');
-  const ss = String(now.getSeconds()).padStart(2, '0');
+  // 使用本地化时间字符串确保时区正确（避免 SSR 时区偏移）
+  const parts = now.toLocaleTimeString('zh-CN', { hour12: false }).split(':');
+  const hh = parts[0]?.padStart(2, '0') ?? '00';
+  const mm = parts[1]?.padStart(2, '0') ?? '00';
+  const ss = parts[2]?.padStart(2, '0') ?? '00';
 
   const toggle = () => {
     setShowSeconds((s) => !s);
@@ -81,7 +83,6 @@ export default function FlipClock({ onToggle }: { onToggle?: () => void }) {
           </>
         )}
       </View>
-      <Text style={styles.hint}>{showSeconds ? '点击收起秒' : '点击显示秒'}</Text>
     </TouchableOpacity>
   );
 }

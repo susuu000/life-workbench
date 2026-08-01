@@ -61,14 +61,31 @@ const CITY_COORDS: Record<string, string> = {
 async function qweatherGet(path: string, params: Record<string, string>): Promise<any> {
   const key = Deno.env.get('QWEATHER_API_KEY');
   if (!key) throw new Error('QWEATHER_API_KEY 未设置');
-  // 商业版自定义 API Host（本项目绑定）
-  const host = Deno.env.get('QWEATHER_API_HOST') || 'kh6pga2v33.re.qweatherapi.com';
+  // 使用和风天气标准 API Host（免费订阅: devapi.qweather.com / 商业订阅: api.qweather.com）
+  const host = Deno.env.get('QWEATHER_API_HOST') || 'devapi.qweather.com';
   const url = new URL(`https://${host}${path}`);
   url.searchParams.set('key', key);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const resp = await fetch(url.toString(), { headers: { 'User-Agent': 'SusuBot/1.0' } });
-  if (!resp.ok) throw new Error(`和风天气 HTTP ${resp.status}`);
-  return await resp.json();
+
+  // 重试逻辑（最多 2 次，间隔 1s）
+  let lastErr: Error | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const resp = await fetch(url.toString(), {
+        headers: { 'User-Agent': 'SusuBot/1.0' },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => '');
+        throw new Error(`和风天气 HTTP ${resp.status}: ${body.slice(0, 200)}`);
+      }
+      return await resp.json();
+    } catch (e) {
+      lastErr = e as Error;
+      if (attempt < 1) await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+  throw lastErr ?? new Error('和风天气请求失败');
 }
 
 /** 城市名 -> location 参数（优先本地坐标表；geo 不可用时兜底尝试一次） */

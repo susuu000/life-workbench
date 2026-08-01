@@ -14,15 +14,21 @@ import { Colors, Spacing, FontSize, BorderRadius } from '@/lib/theme';
 import { AIInsight, AIKnowledgeItem } from '@/lib/types';
 
 // ===== 知识库条目（在 lib 类型基础上补充 collected_by 数组用于收藏判定）=====
-type KnowledgeItem = AIKnowledgeItem & { collectedBy: string[] };
+type KnowledgeItem = AIKnowledgeItem & {
+  collectedBy: string[];
+  content_type?: 'prompt' | 'tutorial';
+  steps?: { step: number; title: string; detail: string }[];
+};
 
 type AITab = 'news' | 'knowledge';
-type KnowledgeCategory = 'ai_office' | 'ai_comic' | 'ai_build';
+type KnowledgeCategory = 'ai_office' | 'ai_comic' | 'ai_build' | 'ai_video';
+type ContentTypeFilter = 'all' | 'prompt' | 'tutorial';
 
 const KNOWLEDGE_CATEGORIES: { key: KnowledgeCategory; label: string }[] = [
   { key: 'ai_office', label: 'AI 办公' },
   { key: 'ai_comic', label: 'AI 漫剧' },
   { key: 'ai_build', label: 'AI 搭建' },
+  { key: 'ai_video', label: 'AI 视频' },
 ];
 
 const INSIGHT_TYPE_LABEL: Record<AIInsight['type'], string> = {
@@ -41,6 +47,7 @@ export default function AIDetailScreen() {
   const [insights, setInsights] = useState<AIInsight[]>([]);
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([]);
   const [activeCategory, setActiveCategory] = useState<KnowledgeCategory | 'all'>('all');
+  const [contentTypeFilter, setContentTypeFilter] = useState<ContentTypeFilter>('all');
   const [mastered, setMastered] = useState<Record<string, boolean>>({});
   const [readingFeeling, setReadingFeeling] = useState('');
   const [savingFeeling, setSavingFeeling] = useState(false);
@@ -65,6 +72,8 @@ export default function AIDetailScreen() {
       four_elements: row.four_elements,
       summary: row.summary,
       core_tip: row.core_tip,
+      content_type: row.content_type || 'prompt',
+      steps: row.steps || [],
       collectedBy: Array.isArray(row.collected_by) ? row.collected_by : [],
       collected: Array.isArray(row.collected_by) && !!uid && row.collected_by.includes(uid),
     }));
@@ -139,9 +148,10 @@ export default function AIDetailScreen() {
     });
   };
 
-  const filteredKnowledge = activeCategory === 'all'
+  const filteredKnowledge = (activeCategory === 'all'
     ? knowledge
-    : knowledge.filter(k => k.category === activeCategory);
+    : knowledge.filter(k => k.category === activeCategory))
+    .filter(k => contentTypeFilter === 'all' ? true : k.content_type === contentTypeFilter);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -180,6 +190,8 @@ export default function AIDetailScreen() {
             categories={KNOWLEDGE_CATEGORIES}
             activeCategory={activeCategory}
             setActiveCategory={setActiveCategory}
+            contentTypeFilter={contentTypeFilter}
+            setContentTypeFilter={setContentTypeFilter}
             items={filteredKnowledge}
             mastered={mastered}
             onToggleMastered={toggleMastered}
@@ -257,12 +269,14 @@ function NewsTab({
 // ===== 知识库 Tab =====
 
 function KnowledgeTab({
-  categories, activeCategory, setActiveCategory, items, mastered,
-  onToggleMastered, onToggleCollect,
+  categories, activeCategory, setActiveCategory, contentTypeFilter, setContentTypeFilter,
+  items, mastered, onToggleMastered, onToggleCollect,
 }: {
   categories: { key: KnowledgeCategory; label: string }[];
   activeCategory: KnowledgeCategory | 'all';
   setActiveCategory: (c: KnowledgeCategory | 'all') => void;
+  contentTypeFilter: ContentTypeFilter;
+  setContentTypeFilter: (c: ContentTypeFilter) => void;
   items: KnowledgeItem[];
   mastered: Record<string, boolean>;
   onToggleMastered: (id: string) => void;
@@ -278,17 +292,62 @@ function KnowledgeTab({
         ))}
       </ScrollView>
 
+      {/* 内容类型筛选 */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catBar}>
+        <Chip label="全部类型" active={contentTypeFilter === 'all'} onPress={() => setContentTypeFilter('all')} />
+        <Chip label="📖 实操教程" active={contentTypeFilter === 'tutorial'} onPress={() => setContentTypeFilter('tutorial')} />
+        <Chip label="💡 提示词" active={contentTypeFilter === 'prompt'} onPress={() => setContentTypeFilter('prompt')} />
+      </ScrollView>
+
       {items.length === 0 ? (
         <Text style={styles.empty}>该分类下暂无内容</Text>
       ) : (
         items.map((item) => {
           const isMastered = !!mastered[item.id];
+          const isTutorial = item.content_type === 'tutorial';
           return (
             <View key={item.id} style={styles.card}>
-              <Field label="🧩 万能提示词公式" text={item.prompt_formula} />
-              <Field label="🔢 四要素" text={item.four_elements} />
-              <Field label="📌 总结" text={item.summary} />
-              <Field label="⭐ 核心技巧" text={item.core_tip} />
+              {/* 类型标签 */}
+              <View style={styles.cardTypeRow}>
+                <View style={[styles.typeTag, isTutorial ? styles.typeTagTutorial : styles.typeTagPrompt]}>
+                  <Text style={styles.typeTagText}>{isTutorial ? '📖 实操教程' : '💡 提示词'}</Text>
+                </View>
+              </View>
+
+              {isTutorial ? (
+                <>
+                  <Text style={styles.tutorialTitle}>{item.title || item.summary}</Text>
+                  {item.summary && item.summary !== item.title && (
+                    <Text style={styles.tutorialSummary}>{item.summary}</Text>
+                  )}
+                  {item.steps && item.steps.length > 0 && (
+                    <View style={styles.stepsBox}>
+                      {item.steps.map((s, i) => (
+                        <View key={i} style={styles.stepRow}>
+                          <View style={styles.stepNum}><Text style={styles.stepNumText}>{s.step}</Text></View>
+                          <View style={styles.stepContent}>
+                            <Text style={styles.stepTitle}>{s.title}</Text>
+                            <Text style={styles.stepDetail}>{s.detail}</Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  {item.core_tip ? (
+                    <View style={styles.coreTipBox}>
+                      <Text style={styles.coreTipLabel}>⭐ 核心技巧</Text>
+                      <Text style={styles.coreTipText}>{item.core_tip}</Text>
+                    </View>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <Field label="🧩 万能提示词公式" text={item.prompt_formula} />
+                  <Field label="🔢 四要素" text={item.four_elements} />
+                  <Field label="📌 总结" text={item.summary} />
+                  <Field label="⭐ 核心技巧" text={item.core_tip} />
+                </>
+              )}
 
               <View style={styles.knowledgeActions}>
                 <TouchableOpacity
@@ -476,4 +535,35 @@ const styles = StyleSheet.create({
     textAlign: 'center', color: Colors.textMuted,
     fontSize: FontSize.sm, paddingVertical: Spacing.xl,
   },
+
+  /* 实操教程卡片 */
+  cardTypeRow: { flexDirection: 'row', marginBottom: Spacing.sm },
+  typeTag: {
+    borderRadius: BorderRadius.full, paddingHorizontal: Spacing.sm, paddingVertical: 2,
+  },
+  typeTagTutorial: { backgroundColor: Colors.success + '20' },
+  typeTagPrompt: { backgroundColor: Colors.primaryLight + '22' },
+  typeTagText: { fontSize: FontSize.xs, fontWeight: '600', color: Colors.textPrimary },
+  tutorialTitle: { fontSize: FontSize.base, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.xs },
+  tutorialSummary: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 20, marginBottom: Spacing.sm },
+  stepsBox: {
+    backgroundColor: Colors.background, borderRadius: BorderRadius.sm,
+    padding: Spacing.md, marginTop: Spacing.xs,
+  },
+  stepRow: { flexDirection: 'row', marginBottom: Spacing.md },
+  stepNum: {
+    width: 24, height: 24, borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
+    marginRight: Spacing.sm, marginTop: 2,
+  },
+  stepNumText: { color: '#FFFFFF', fontSize: FontSize.xs, fontWeight: 'bold' },
+  stepContent: { flex: 1 },
+  stepTitle: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textPrimary },
+  stepDetail: { fontSize: FontSize.xs, color: Colors.textSecondary, lineHeight: 18, marginTop: 2 },
+  coreTipBox: {
+    backgroundColor: Colors.gold + '15', borderRadius: BorderRadius.sm,
+    padding: Spacing.md, marginTop: Spacing.sm,
+  },
+  coreTipLabel: { fontSize: FontSize.xs, fontWeight: 'bold', color: Colors.gold },
+  coreTipText: { fontSize: FontSize.sm, color: Colors.textPrimary, marginTop: Spacing.xs, lineHeight: 20 },
 });

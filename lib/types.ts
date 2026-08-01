@@ -73,11 +73,14 @@ export interface AIInsight {
 }
 export interface AIKnowledgeItem {
   id: string;
-  category: 'ai_office' | 'ai_comic' | 'ai_build';
+  category: 'ai_office' | 'ai_comic' | 'ai_build' | 'ai_video';
   prompt_formula: string;
   four_elements: string;
   summary: string;
   core_tip: string;
+  title?: string;
+  content_type?: 'prompt' | 'tutorial';
+  steps?: { step: number; title: string; detail: string }[];
   collected: boolean;
 }
 

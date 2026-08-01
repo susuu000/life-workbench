@@ -100,6 +100,7 @@ function AppShell() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)/module/[key]" options={{ title: '界面', headerShown: false }} />
         </Stack>
         </EdgeSwipe>
         {/* 云端连接状态条 */}

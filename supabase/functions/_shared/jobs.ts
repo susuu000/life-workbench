@@ -18,10 +18,10 @@ async function upsertByKey(
   table: string,
   rows: Record<string, unknown>[],
   keyField: string,
-  keepDays = 7
+  keepDays = 7,
+  maxTotal?: number
 ) {
   if (rows.length === 0) return 0;
-  // 去重：拉取已有 key
   const { data: existing } = await sb.from(table).select(keyField).limit(5000);
   const seen = new Set((existing ?? []).map((r: any) => r[keyField]));
   const fresh = rows.filter((r) => !seen.has(r[keyField]));
@@ -30,7 +30,15 @@ async function upsertByKey(
   const { error } = await sb.from(table).insert(fresh);
   if (error) throw new Error(`${table} 插入失败: ${error.message}`);
 
-  // 清理旧数据
+  // 若设了最大条数，删除超出部分
+  if (maxTotal) {
+    const { data: all } = await sb.from(table).select(keyField).order('published_at', { ascending: false });
+    if (all && all.length > maxTotal) {
+      const toDelete = all.slice(maxTotal).map((r: any) => r[keyField]);
+      await sb.from(table).delete().in(keyField, toDelete);
+    }
+  }
+
   const cutoff = new Date(Date.now() - keepDays * 86400000).toISOString().slice(0, 10);
   await sb.from(table).delete().lt('published_at', cutoff).then(() => {}).catch(() => {});
   return fresh.length;
@@ -49,7 +57,7 @@ async function fetchSource(src: { url: string; source: string }): Promise<RssIte
   }
 }
 
-// ---------- 时事新闻 ----------
+// ---------- 时事新闻（每日最多 15 条） ----------
 export async function refreshNews(sb: SupabaseClient) {
   const rows: Record<string, unknown>[] = [];
   for (const src of NEWS_SOURCES) {
@@ -64,8 +72,11 @@ export async function refreshNews(sb: SupabaseClient) {
       });
     }
   }
-  const n = await upsertByKey(sb, 'news_cache', rows, 'url');
-  log(`news_cache 新增 ${n} 条`);
+  // 按发布日期倒序排列，保留最新 15 条
+  rows.sort((a, b) => (a.published_at as string) < (b.published_at as string) ? 1 : -1);
+  const top = rows.slice(0, 15);
+  const n = await upsertByKey(sb, 'news_cache', top, 'url', 7, 15);
+  log(`news_cache 新增 ${n} 条（共保留最新 15 条）`);
   return n;
 }
 
@@ -315,4 +326,203 @@ export async function refreshStocks(sb: SupabaseClient) {
     log(`stock 抓取失败: ${(e as Error).message}`);
     return 0;
   }
+}
+
+// ---------- AI 知识库 · 实操教程（Seedance 2.5 等） ----------
+export async function refreshAiKnowledge(sb: SupabaseClient) {
+  if (!aiEnabled()) {
+    log('未配置任何 AI 密钥，跳过 AI 知识库生成');
+    return 0;
+  }
+
+  // 实操知识主题
+  const topics = [
+    {
+      category: 'ai_video',
+      title: 'Seedance 2.5 更新：AI 视频生成新突破',
+      prompt: `请以中文输出关于「Seedance 2.5 AI视频生成工具」的实操教程，包含以下结构化内容，每项不超过 100 字：
+1. 核心更新亮点
+2. CG质感：如何设置参数让画面更有电影感
+3. 追逐节奏：镜头跟随主体的节奏控制技巧
+4. 镜头切换：多镜头无缝衔接的方法
+5. 角色一致性：跨镜头保持角色外貌一致的方法
+输出严格 JSON 格式：{"title":"...","summary":"一句话概述","steps":[{"step":1,"title":"步骤标题","detail":"操作细节"},...],"core_tip":"最核心的一个技巧","category":"ai_video"}`,
+    },
+    {
+      category: 'ai_video',
+      title: 'AI 视频 CG 质感打造指南',
+      prompt: `请以中文输出关于「AI视频 CG质感打造」的实操教程。包含：光影设置、材质纹理、色彩分级、渲染参数等具体操作步骤。输出严格 JSON 格式：{"title":"...","summary":"...","steps":[{"step":1,"title":"...","detail":"..."},...],"core_tip":"...","category":"ai_video"}`,
+    },
+    {
+      category: 'ai_video',
+      title: 'AI 视频追逐节奏与运镜技巧',
+      prompt: `请以中文输出关于「AI视频追逐场景的节奏与运镜」实操教程。包含：速度曲线设置、景深控制、跟随镜头参数、紧张感营造。输出严格 JSON 格式：{"title":"...","summary":"...","steps":[{"step":1,"title":"...","detail":"..."},...],"core_tip":"...","category":"ai_video"}`,
+    },
+    {
+      category: 'ai_video',
+      title: 'AI 视频镜头切换与转场设计',
+      prompt: `请以中文输出关于「AI视频镜头切换与转场」实操教程。包含：切换时机、转场类型选择、节奏把控、情绪引导。输出严格 JSON 格式：{"title":"...","summary":"...","steps":[{"step":1,"title":"...","detail":"..."},...],"core_tip":"...","category":"ai_video"}`,
+    },
+    {
+      category: 'ai_video',
+      title: 'AI 角色一致性：跨镜头保持人物形象',
+      prompt: `请以中文输出关于「AI视频角色一致性保持」实操教程。包含：Seed 种子管理、参考图使用、Prompt 描述技巧、负面提示词。输出严格 JSON 格式：{"title":"...","summary":"...","steps":[{"step":1,"title":"...","detail":"..."},...],"core_tip":"...","category":"ai_video"}`,
+    },
+    {
+      category: 'ai_office',
+      title: 'AI 办公效率提升：自动化工作流搭建',
+      prompt: `请以中文输出关于「AI办公自动化工作流」实操教程。包含：常用工具推荐、自动化场景、Prompt模板、效率对比。输出严格 JSON 格式：{"title":"...","summary":"...","steps":[{"step":1,"title":"...","detail":"..."},...],"core_tip":"...","category":"ai_office"}`,
+    },
+  ];
+
+  const rows: Record<string, unknown>[] = [];
+  for (const topic of topics) {
+    try {
+      const ai = await deepseekChat(topic.prompt, '你是 AI 工具实操专家，只输出 JSON，内容专业且可操作。');
+      const m = ai.match(/\{[\s\S]*\}/);
+      const parsed = m ? JSON.parse(m[0]) : null;
+      if (parsed) {
+        rows.push({
+          category: parsed.category || topic.category,
+          title: parsed.title || topic.title,
+          summary: parsed.summary || '',
+          steps: parsed.steps || [],
+          core_tip: parsed.core_tip || '',
+          content_type: 'tutorial',
+          published_at: new Date().toISOString().slice(0, 10),
+        });
+      }
+    } catch (e) {
+      log(`AI 知识库生成失败 ${topic.title}: ${(e as Error).message}`);
+    }
+  }
+
+  // 同时保留一些提示词类知识（通过不同 content_type 区分）
+  const promptTopics = [
+    {
+      category: 'ai_office',
+      title: '万能 AI 办公提示词模板',
+      prompt: `请输出一个实用的 AI 办公提示词公式，包含：公式模板、四要素说明、使用场景、核心技巧。输出严格 JSON：{"title":"...","prompt_formula":"...","four_elements":"...","summary":"...","core_tip":"...","category":"ai_office","content_type":"prompt"}`,
+    },
+    {
+      category: 'ai_comic',
+      title: 'AI 漫剧分镜提示词技巧',
+      prompt: `请输出关于 AI 漫剧分镜的提示词技巧，包含：公式、四要素、场景案例。输出严格 JSON：{"title":"...","prompt_formula":"...","four_elements":"...","summary":"...","core_tip":"...","category":"ai_comic","content_type":"prompt"}`,
+    },
+    {
+      category: 'ai_build',
+      title: 'AI 应用搭建最佳实践',
+      prompt: `请输出关于用 AI 搭建应用的最佳实践，包含：工具选择、架构思路、提示词模板。输出严格 JSON：{"title":"...","prompt_formula":"...","four_elements":"...","summary":"...","core_tip":"...","category":"ai_build","content_type":"prompt"}`,
+    },
+  ];
+
+  for (const topic of promptTopics) {
+    try {
+      const ai = await deepseekChat(topic.prompt, '你是 AI 应用专家，只输出 JSON。');
+      const m = ai.match(/\{[\s\S]*\}/);
+      const parsed = m ? JSON.parse(m[0]) : null;
+      if (parsed) {
+        rows.push({
+          category: parsed.category || topic.category,
+          title: parsed.title || topic.title,
+          prompt_formula: parsed.prompt_formula || '',
+          four_elements: parsed.four_elements || '',
+          summary: parsed.summary || '',
+          core_tip: parsed.core_tip || '',
+          content_type: 'prompt',
+          published_at: new Date().toISOString().slice(0, 10),
+        });
+      }
+    } catch (e) {
+      log(`AI 提示词生成失败 ${topic.title}: ${(e as Error).message}`);
+    }
+  }
+
+  if (rows.length === 0) return 0;
+
+  // 删除旧的 AI 生成内容，全量替换
+  await sb.from('ai_knowledge_items').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  const { error } = await sb.from('ai_knowledge_items').insert(rows);
+  if (error) throw new Error(`ai_knowledge_items 写入失败: ${error.message}`);
+  log(`ai_knowledge_items 刷新 ${rows.length} 条（${rows.filter(r => r.content_type === 'tutorial').length} 教程 + ${rows.filter(r => r.content_type === 'prompt').length} 提示词）`);
+  return rows.length;
+}
+
+// ---------- 自媒体内容生成（今日推荐 / 灵感 / 审美各 8 条） ----------
+export async function refreshSocialMedia(sb: SupabaseClient) {
+  if (!aiEnabled()) {
+    log('未配置 AI 密钥，跳过自媒体内容生成');
+    return 0;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const allRows: Record<string, unknown>[] = [];
+
+  // 今日推荐（8条）：小红书/抖音爆款选题推荐
+  try {
+    const prompt = `请生成 8 条今日自媒体爆款选题推荐（小红书/抖音平台）。每条包含：标题、内容摘要（30字内）、平台(xiaohongshu/douyin)、流量逻辑分析（50字内）。输出严格 JSON 数组格式：[{"title":"...","content":"...","platform":"xiaohongshu","traffic_analysis":"...","source_url":"https://www.xiaohongshu.com/explore"},...]`;
+    const ai = await deepseekChat(prompt, '你是自媒体运营专家，只输出 JSON 数组，内容具体可操作。');
+    const m = ai.match(/\[[\s\S]*\]/);
+    const items = m ? JSON.parse(m[0]) : [];
+    for (const item of items) {
+      allRows.push({
+        type: 'today_rec',
+        title: item.title,
+        content: item.content || '',
+        platform: item.platform || 'xiaohongshu',
+        traffic_analysis: item.traffic_analysis || '',
+        source_url: item.source_url || '',
+        published_at: today,
+      });
+    }
+  } catch (e) {
+    log(`今日推荐生成失败: ${(e as Error).message}`);
+  }
+
+  // 今日灵感（8条）：创意选题灵感
+  try {
+    const prompt = `请生成 8 条今日自媒体创意灵感选题。每条包含：标题（有吸引力的选题）、内容简述（30字）。输出严格 JSON 数组：[{"title":"...","content":"..."},...]`;
+    const ai = await deepseekChat(prompt, '你是创意内容策划专家，只输出 JSON 数组，选题新颖有爆款潜力。');
+    const m = ai.match(/\[[\s\S]*\]/);
+    const items = m ? JSON.parse(m[0]) : [];
+    for (const item of items) {
+      allRows.push({
+        type: 'inspiration',
+        title: item.title,
+        content: item.content || '',
+        platform: 'other',
+        published_at: today,
+      });
+    }
+  } catch (e) {
+    log(`今日灵感生成失败: ${(e as Error).message}`);
+  }
+
+  // 审美搭建（8条）：视觉审美参考
+  try {
+    const prompt = `请生成 8 条今日审美搭建参考（适合小红书/Instagram 视觉风格）。每条包含：风格名称、描述（30字）、适合平台。输出严格 JSON 数组：[{"title":"...","content":"...","platform":"xiaohongshu"},...]`;
+    const ai = await deepseekChat(prompt, '你是视觉审美专家，只输出 JSON 数组，风格描述具体可参考。');
+    const m = ai.match(/\[[\s\S]*\]/);
+    const items = m ? JSON.parse(m[0]) : [];
+    for (const item of items) {
+      allRows.push({
+        type: 'aesthetic',
+        title: item.title,
+        content: item.content || '',
+        platform: item.platform || 'xiaohongshu',
+        published_at: today,
+      });
+    }
+  } catch (e) {
+    log(`审美搭建生成失败: ${(e as Error).message}`);
+  }
+
+  if (allRows.length === 0) return 0;
+
+  // 删除当日旧数据，全量替换
+  await sb.from('social_media_recs').delete().eq('published_at', today);
+  const { error } = await sb.from('social_media_recs').insert(allRows);
+  if (error) throw new Error(`social_media_recs 写入失败: ${error.message}`);
+  log(`social_media_recs 刷新 ${allRows.length} 条（推荐/灵感/审美）`);
+  return allRows.length;
 }

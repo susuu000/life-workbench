@@ -10,7 +10,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, RefreshControl, Linking, Alert, Image, Switch,
+  TextInput, RefreshControl, Linking, Alert, Image, Switch, Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // 注：expo-image-picker 需 `npx expo install expo-image-picker`
@@ -91,6 +91,20 @@ export default function SelfExploreDetailScreen() {
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [journalImages, setJournalImages] = useState<string[]>([]);
   const [journalText, setJournalText] = useState('');
+
+  // ===== 编辑弹窗状态 =====
+  const [editModal, setEditModal] = useState<{
+    visible: boolean;
+    type: 'skill' | 'finance' | 'cloth' | null;
+    id: string;
+    name?: string;
+    date?: string;
+    note?: string;
+    amount?: string;
+    category?: string;
+    style?: string;
+    price?: string;
+  }>({ visible: false, type: null, id: '' });
 
   // ---- 数据加载 ----
   const loadData = useCallback(async () => {
@@ -357,6 +371,33 @@ export default function SelfExploreDetailScreen() {
     }
   };
 
+  // ============ 编辑保存 ============
+  const saveEdit = async () => {
+    const uid = await getCurrentUserId();
+    if (!uid) return;
+    const { type, id, name, date, note, amount, category, style, price } = editModal;
+
+    try {
+      if (type === 'skill') {
+        await supabase.from('new_skills').update({
+          skill_name: name, learned_at: date, notes: note,
+        }).eq('id', id);
+      } else if (type === 'finance') {
+        await supabase.from('finance_records').update({
+          amount: Number(amount), category, note,
+        }).eq('id', id);
+      } else if (type === 'cloth') {
+        await supabase.from('clothes_records').update({
+          style, price: Number(price),
+        }).eq('id', id);
+      }
+      setEditModal({ visible: false, type: null, id: '' });
+      await loadData();
+    } catch (e) {
+      Alert.alert('保存失败', String(e));
+    }
+  };
+
   // ============ 渲染：生理期日历标记 ============
   const periodDays = new Set<string>();
   periods.forEach(p => {
@@ -452,7 +493,15 @@ export default function SelfExploreDetailScreen() {
               <Text style={styles.primaryBtnText}>AI 识别（TODO）</Text>
             </TouchableOpacity>
             {clothes.map(c => (
-              <View key={c.id} style={styles.clothCard}>
+              <TouchableOpacity
+                key={c.id}
+                style={styles.clothCard}
+                activeOpacity={0.7}
+                onPress={() => setEditModal({
+                  visible: true, type: 'cloth', id: c.id,
+                  style: c.style, price: String(c.price),
+                })}
+              >
                 <Text style={styles.clothStyle}>{c.style}</Text>
                 <Text style={styles.clothMeta}>¥{c.price} · {c.category}</Text>
                 {c.source_url ? (
@@ -460,7 +509,8 @@ export default function SelfExploreDetailScreen() {
                     <Text style={styles.clothLink}>查看原链接 →</Text>
                   </TouchableOpacity>
                 ) : null}
-              </View>
+                <Text style={styles.editHint}>点击编辑</Text>
+              </TouchableOpacity>
             ))}
           </View>
         )}
@@ -508,10 +558,19 @@ export default function SelfExploreDetailScreen() {
             </TouchableOpacity>
             <SectionTitle icon="📚" title="历史技能" />
             {skills.map(s => (
-              <View key={s.id} style={styles.listCard}>
+              <TouchableOpacity
+                key={s.id}
+                style={styles.listCard}
+                activeOpacity={0.7}
+                onPress={() => setEditModal({
+                  visible: true, type: 'skill', id: s.id,
+                  name: s.skill_name, date: s.learned_at, note: s.notes || '',
+                })}
+              >
                 <Text style={styles.listTitle}>{s.skill_name}</Text>
                 <Text style={styles.listMeta}>{s.learned_at}{s.notes ? ` · ${s.notes}` : ''}</Text>
-              </View>
+                <Text style={styles.editHint}>点击编辑</Text>
+              </TouchableOpacity>
             ))}
             {skills.length === 0 && <Text style={styles.empty}>暂无技能记录</Text>}
           </View>
@@ -573,13 +632,22 @@ export default function SelfExploreDetailScreen() {
 
             <SectionTitle icon="🧾" title="历史记录" />
             {finances.map(f => (
-              <View key={f.id} style={styles.listCard}>
+              <TouchableOpacity
+                key={f.id}
+                style={styles.listCard}
+                activeOpacity={0.7}
+                onPress={() => setEditModal({
+                  visible: true, type: 'finance', id: f.id,
+                  amount: String(f.amount), category: f.category, note: f.note || '',
+                })}
+              >
                 <View style={styles.finRow}>
                   <Text style={styles.listTitle}>¥{f.amount.toFixed(2)}</Text>
                   <Text style={styles.finCat}>{f.category}</Text>
                 </View>
                 <Text style={styles.listMeta}>{f.recorded_at}{f.note ? ` · ${f.note}` : ''}{f.is_large ? ' · 大额' : ''}</Text>
-              </View>
+                <Text style={styles.editHint}>点击编辑</Text>
+              </TouchableOpacity>
             ))}
             {finances.length === 0 && <Text style={styles.empty}>暂无记录</Text>}
           </View>
@@ -626,6 +694,60 @@ export default function SelfExploreDetailScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* ===== 编辑弹窗 ===== */}
+      <Modal visible={editModal.visible} transparent animationType="slide" onRequestClose={() => setEditModal({ visible: false, type: null, id: '' })}>
+        <View style={styles.modalMask}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>
+              {editModal.type === 'skill' ? '编辑技能' : editModal.type === 'finance' ? '编辑财务记录' : '编辑衣物'}
+            </Text>
+            {editModal.type === 'skill' && (
+              <>
+                <TextInput style={styles.input} placeholder="技能名称" placeholderTextColor={Colors.textMuted}
+                  value={editModal.name} onChangeText={(v) => setEditModal(prev => ({ ...prev, name: v }))} />
+                <TextInput style={styles.input} placeholder="日期 YYYY-MM-DD" placeholderTextColor={Colors.textMuted}
+                  value={editModal.date} onChangeText={(v) => setEditModal(prev => ({ ...prev, date: v }))} />
+                <TextInput style={styles.input} placeholder="备注" placeholderTextColor={Colors.textMuted}
+                  value={editModal.note} onChangeText={(v) => setEditModal(prev => ({ ...prev, note: v }))} />
+              </>
+            )}
+            {editModal.type === 'finance' && (
+              <>
+                <TextInput style={styles.input} placeholder="金额" placeholderTextColor={Colors.textMuted} keyboardType="numeric"
+                  value={editModal.amount} onChangeText={(v) => setEditModal(prev => ({ ...prev, amount: v }))} />
+                <View style={styles.row}>
+                  {FINANCE_CATEGORIES.map(c => (
+                    <TouchableOpacity key={c}
+                      style={[styles.chip, editModal.category === c && styles.chipOn]}
+                      onPress={() => setEditModal(prev => ({ ...prev, category: c }))} activeOpacity={0.7}>
+                      <Text style={[styles.chipText, editModal.category === c && styles.chipTextOn]}>{c}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TextInput style={styles.input} placeholder="备注" placeholderTextColor={Colors.textMuted}
+                  value={editModal.note} onChangeText={(v) => setEditModal(prev => ({ ...prev, note: v }))} />
+              </>
+            )}
+            {editModal.type === 'cloth' && (
+              <>
+                <TextInput style={styles.input} placeholder="风格/样式" placeholderTextColor={Colors.textMuted}
+                  value={editModal.style} onChangeText={(v) => setEditModal(prev => ({ ...prev, style: v }))} />
+                <TextInput style={styles.input} placeholder="价格" placeholderTextColor={Colors.textMuted} keyboardType="numeric"
+                  value={editModal.price} onChangeText={(v) => setEditModal(prev => ({ ...prev, price: v }))} />
+              </>
+            )}
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setEditModal({ visible: false, type: null, id: '' })} activeOpacity={0.7}>
+                <Text style={styles.modalCancelText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirm} onPress={saveEdit} activeOpacity={0.7}>
+                <Text style={styles.modalConfirmText}>保存</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -742,6 +864,29 @@ const styles = StyleSheet.create({
   },
   tip: { fontSize: FontSize.xs, color: Colors.textMuted, marginBottom: Spacing.sm },
   empty: { textAlign: 'center', color: Colors.textMuted, fontSize: FontSize.sm, paddingVertical: Spacing.lg },
+  editHint: { fontSize: FontSize.xs, color: Colors.primary, marginTop: Spacing.xs, fontWeight: '600' },
+
+  /* 编辑弹窗 */
+  modalMask: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
+  },
+  modalBox: {
+    width: '100%', backgroundColor: Colors.surface, borderRadius: BorderRadius.lg,
+    padding: Spacing.xl, borderWidth: 1, borderColor: Colors.border,
+  },
+  modalTitle: { fontSize: FontSize.lg, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.md },
+  modalActions: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.lg },
+  modalCancel: {
+    flex: 1, alignItems: 'center', paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full, borderWidth: 1, borderColor: Colors.border,
+  },
+  modalCancelText: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '600' },
+  modalConfirm: {
+    flex: 1, alignItems: 'center', paddingVertical: Spacing.sm,
+    backgroundColor: Colors.primary, borderRadius: BorderRadius.full,
+  },
+  modalConfirmText: { color: '#FFFFFF', fontSize: FontSize.sm, fontWeight: '600' },
 
   /* 通用输入/按钮 */
   input: {

@@ -9,7 +9,7 @@ import {
   TextInput, RefreshControl, Linking, Alert, Image, Modal, PanResponder,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { supabase, getCurrentUserId } from '@/lib/supabase';
+import { supabase, getCurrentUserId, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { Colors, Spacing, FontSize, BorderRadius } from '@/lib/theme';
 import { BookMovieEntry } from '@/lib/types';
 
@@ -60,6 +60,7 @@ export default function ReadingDetailScreen() {
   const [sanlian, setSanlian] = useState<SanlianArticle[]>([]);
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [checkinDates, setCheckinDates] = useState<Set<string>>(new Set());
 
   // 添加新书/影视弹窗
   const [addModal, setAddModal] = useState(false);
@@ -93,6 +94,18 @@ export default function ReadingDetailScreen() {
       .select('*')
       .order('week_of', { ascending: false });
     setSanlian((sl as SanlianArticle[]) ?? []);
+
+    // 加载本月打卡日期
+    if (uid) {
+      const now = new Date();
+      const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      const { data: checkins } = await supabase
+        .from('reading_checkins')
+        .select('date')
+        .eq('user_id', uid)
+        .gte('date', startOfMonth);
+      setCheckinDates(new Set((checkins ?? []).map((c: any) => c.date)));
+    }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -147,28 +160,61 @@ export default function ReadingDetailScreen() {
     const today = new Date().toISOString().split('T')[0];
     const { error } = await supabase
       .from('reading_checkins')
-      .insert({ entry_id: entry.id, entry_type: entry.type, date: today });
-    if (error) Alert.alert('打卡失败', error.message);
-    else Alert.alert('打卡成功', `已在 ${today} 为《${entry.title}》打卡`);
+      .insert({ user_id: uid, entry_id: entry.id, entry_type: entry.type, date: today });
+    if (error) {
+      // 可能是重复打卡
+      if (error.code === '23505') {
+        Alert.alert('提示', '今日已打卡');
+      } else {
+        Alert.alert('打卡失败', error.message);
+      }
+    } else {
+      setCheckinDates(prev => new Set([...prev, today]));
+      Alert.alert('打卡成功', `已在 ${today} 为《${entry.title}》打卡`);
+    }
   };
 
-  // ---- 添加新书/影视 ----
+  // ---- 添加新书/影视（含豆瓣自动匹配）----
   const addEntry = async () => {
     const uid = await getCurrentUserId();
     if (!uid) { Alert.alert('提示', '请先登录'); return; }
     const title = newTitle.trim();
     if (!title) { Alert.alert('提示', '请输入书名/影视名'); return; }
 
-    // TODO: 后续接入豆瓣/Letterboxd API，根据标题自动填充作者、封面、总页数等信息
+    // 尝试通过 Edge Function 代理豆瓣搜索自动匹配
+    let coverUrl = '';
+    let author = '';
+    let description = '';
+    let detectedType: 'book' | 'movie' = 'book';
+
+    try {
+      const resp = await fetch(
+        `${SUPABASE_URL}/functions/v1/douban-search?q=${encodeURIComponent(title)}`,
+        { headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+      );
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json.data) {
+          coverUrl = json.data.cover_url || '';
+          author = json.data.author || '';
+          description = json.data.description || '';
+          detectedType = json.data.type || 'book';
+        }
+      }
+    } catch {
+      // 豆瓣匹配失败静默，使用空白字段
+    }
+
     const { data, error } = await supabase
       .from('book_movie_entries')
       .insert({
         user_id: uid,
-        type: 'book',
+        type: detectedType,
         title,
+        author,
+        cover_url: coverUrl,
+        description,
         status: 'reading',
-        cover_url: '',
-        description: '',
       })
       .select()
       .single();
@@ -180,6 +226,28 @@ export default function ReadingDetailScreen() {
     setEntries(prev => [data as BookMovieEntry, ...prev]);
     setNewTitle('');
     setAddModal(false);
+  };
+
+  // ---- 删除条目 ----
+  const deleteEntry = (entry: BookMovieEntry) => {
+    Alert.alert('确认删除', `确定要删除「${entry.title}」吗？此操作不可恢复。`, [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '删除',
+        style: 'destructive',
+        onPress: async () => {
+          const { error } = await supabase
+            .from('book_movie_entries')
+            .delete()
+            .eq('id', entry.id);
+          if (!error) {
+            setEntries(prev => prev.filter(e => e.id !== entry.id));
+          } else {
+            Alert.alert('删除失败', error.message);
+          }
+        },
+      },
+    ]);
   };
 
   const filteredEntries = entries.filter(e => e.status === bmFilter);
@@ -220,9 +288,11 @@ export default function ReadingDetailScreen() {
             entries={filteredEntries}
             expandedId={expandedId}
             setExpandedId={setExpandedId}
+            checkinDates={checkinDates}
             onOpenUrl={openUrl}
             onProgress={updateProgress}
             onCheckin={checkin}
+            onDelete={deleteEntry}
             onAddPress={() => setAddModal(true)}
           />
         )}
@@ -278,19 +348,22 @@ export default function ReadingDetailScreen() {
 // ===== 书影 Tab =====
 
 function BookMovieTab({
-  filter, setFilter, entries, expandedId, setExpandedId,
-  onOpenUrl, onProgress, onCheckin, onAddPress,
+  filter, setFilter, entries, expandedId, setExpandedId, checkinDates,
+  onOpenUrl, onProgress, onCheckin, onDelete, onAddPress,
 }: {
   filter: BookMovieFilter;
   setFilter: (f: BookMovieFilter) => void;
   entries: BookMovieEntry[];
   expandedId: string | null;
   setExpandedId: (id: string | null) => void;
+  checkinDates: Set<string>;
   onOpenUrl: (url: string) => void;
   onProgress: (entry: BookMovieEntry, value: number) => void;
   onCheckin: (entry: BookMovieEntry) => void;
+  onDelete: (entry: BookMovieEntry) => void;
   onAddPress: () => void;
 }) {
+  const today = new Date().toISOString().split('T')[0];
   return (
     <View>
       {/* 分类标签 */}
@@ -302,10 +375,8 @@ function BookMovieTab({
         </TouchableOpacity>
       </View>
 
-      {/* 月历视图入口（TODO） */}
-      <TouchableOpacity style={styles.monthEntry} activeOpacity={0.7} onPress={() => Alert.alert('提示', '月历视图开发中')}>
-        <Text style={styles.monthEntryText}>🗓 月度阅读打卡视图（TODO）</Text>
-      </TouchableOpacity>
+      {/* 月历打卡视图 */}
+      <ReadingMonthCalendar marked={checkinDates} highlight={today} />
 
       {entries.length === 0 ? (
         <Text style={styles.empty}>暂无条目，点击右上角「＋ 添加」</Text>
@@ -373,6 +444,9 @@ function BookMovieTab({
                         <Text style={styles.linkBtnText}>🎬 B站解说</Text>
                       </TouchableOpacity>
                     )}
+                    <TouchableOpacity style={styles.deleteEntryBtn} onPress={() => onDelete(entry)} activeOpacity={0.7}>
+                      <Text style={styles.deleteEntryText}>🗑</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               )}
@@ -681,4 +755,69 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary, borderRadius: BorderRadius.full,
   },
   modalConfirmText: { color: '#FFFFFF', fontSize: FontSize.sm, fontWeight: '600' },
+
+  /* 删除按钮 */
+  deleteEntryBtn: {
+    width: 36, height: 36, borderRadius: BorderRadius.full,
+    backgroundColor: Colors.error + '15', alignItems: 'center', justifyContent: 'center',
+  },
+  deleteEntryText: { fontSize: 16 },
+
+  /* 月历打卡 */
+  calWrap: {
+    backgroundColor: Colors.surface, borderRadius: BorderRadius.md,
+    padding: Spacing.md, marginBottom: Spacing.md,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  calTitle: { fontSize: FontSize.sm, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.sm, textAlign: 'center' },
+  calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calWeekday: { width: '14.28%', textAlign: 'center', fontSize: FontSize.xs, color: Colors.textMuted, marginBottom: Spacing.xs },
+  calCell: { width: '14.28%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
+  calDot: {
+    width: 28, height: 28, borderRadius: BorderRadius.full,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  calDotMarked: { backgroundColor: Colors.success + '25' },
+  calDotToday: { backgroundColor: Colors.primary },
+  calDay: { fontSize: FontSize.xs, color: Colors.textPrimary },
+  calDayToday: { color: '#FFFFFF', fontWeight: 'bold' },
 });
+
+// ===== 阅读月历打卡组件 =====
+function ReadingMonthCalendar({ marked, highlight }: { marked: Set<string>; highlight: string }) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  return (
+    <View style={styles.calWrap}>
+      <Text style={styles.calTitle}>📅 {year} 年 {month + 1} 月 阅读打卡</Text>
+      <View style={styles.calGrid}>
+        {['日', '一', '二', '三', '四', '五', '六'].map(w => (
+          <Text key={w} style={styles.calWeekday}>{w}</Text>
+        ))}
+        {cells.map((d, i) => {
+          if (d === null) return <View key={`e${i}`} style={styles.calCell} />;
+          const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const isMarked = marked.has(dateStr);
+          const isToday = highlight === dateStr;
+          return (
+            <View key={dateStr} style={styles.calCell}>
+              <View style={[styles.calDot, isMarked && styles.calDotMarked, isToday && styles.calDotToday]}>
+                <Text style={[styles.calDay, isToday && styles.calDayToday]}>{d}</Text>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+      <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.sm }}>
+        本月已打卡 {marked.size} 天
+      </Text>
+    </View>
+  );
+}

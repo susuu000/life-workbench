@@ -27,6 +27,7 @@ interface WordTask {
   daily_target: number;
   completed: number;
   source_link: string | null;
+  duolingo_done?: boolean;
 }
 
 interface ListeningArticle {
@@ -141,6 +142,27 @@ export default function EnglishDetailScreen() {
     });
   };
 
+  // ---- 跳转多邻国 ----
+
+  const openDuolingo = () => {
+    // 多邻国 URL Scheme
+    const schemes = ['duolingo://', 'https://www.duolingo.com/'];
+    const tryOpen = async (url: string) => {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+        return true;
+      }
+      return false;
+    };
+    (async () => {
+      for (const scheme of schemes) {
+        if (await tryOpen(scheme)) return;
+      }
+      Alert.alert('提示', '请先安装多邻国 App，或访问网页版 duolingo.com');
+    })();
+  };
+
   // ---- 渲染：排序（未完成在前，已完成沉底）----
   const sortedTasks = [...tasks].sort((a, b) => {
     if (a.done !== b.done) return a.done ? 1 : -1;
@@ -164,6 +186,48 @@ export default function EnglishDetailScreen() {
         </View>
         <TouchableOpacity style={styles.momoBtn} onPress={openMoMo} activeOpacity={0.7}>
           <Text style={styles.momoBtnText}>打开墨墨背单词 →</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ===== 多邻国打卡 ===== */}
+      <SectionTitle icon="🦉" title="多邻国" />
+      <View style={styles.wordCard}>
+        <View style={styles.wordInfo}>
+          <Text style={styles.wordLabel}>每日打卡</Text>
+          <Text style={[styles.wordTarget, { color: Colors.success }]}>
+            {wordTask?.duolingo_done ? '✓ 今日已打卡' : '○ 待打卡'}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.momoBtn, { backgroundColor: Colors.success }]}
+          onPress={async () => {
+            const uid = await getCurrentUserId();
+            if (!uid) { Alert.alert('提示', '请先登录'); return; }
+            const today = new Date().toISOString().split('T')[0];
+            // 更新或创建多邻国打卡记录
+            const { error } = await supabase
+              .from('english_word_tasks')
+              .upsert({
+                user_id: uid,
+                date: today,
+                duolingo_done: true,
+                daily_target: wordTask?.daily_target ?? 15,
+                completed: wordTask?.completed ?? 0,
+              }, { onConflict: 'user_id,date' });
+            if (!error) {
+              setWordTask(prev => prev ? { ...prev, duolingo_done: true } : {
+                id: '', user_id: uid, daily_target: 15, completed: 0, source_link: null, duolingo_done: true
+              } as any);
+              openDuolingo();
+            } else {
+              Alert.alert('打卡失败', error.message);
+            }
+          }}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.momoBtnText}>
+            {wordTask?.duolingo_done ? '已打卡 ✓' : '打卡并打开 →'}
+          </Text>
         </TouchableOpacity>
       </View>
 
