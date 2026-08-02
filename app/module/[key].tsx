@@ -22,7 +22,6 @@ export default function ModuleDetailScreen() {
   const insets = useSafeAreaInsets();
   const meta = MODULE_META[moduleKey] ?? { label: '未知板块', icon: '📦' };
 
-  // 根据模块 key 渲染对应的详情组件
   const renderContent = () => {
     switch (moduleKey) {
       case 'english':
@@ -44,19 +43,15 @@ export default function ModuleDetailScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* 顶部标题栏 */}
       <View style={styles.header}>
         <Text style={styles.headerIcon}>{meta.icon}</Text>
         <Text style={styles.headerTitle}>{meta.label}</Text>
       </View>
-
-      {/* 模块详情内容 */}
       {renderContent()}
     </View>
   );
 }
 
-/** 空板块占位（未匹配到任何模块时显示） */
 function PlaceholderDetail({ icon, label, desc }: { icon: string; label: string; desc: string }) {
   return (
     <View style={styles.placeholder}>
