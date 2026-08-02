@@ -100,7 +100,6 @@ export default function TabLayout() {
       <Tabs.Screen name="index" />
       <Tabs.Screen name="discover" />
       <Tabs.Screen name="mine" />
-      <Tabs.Screen name="module/[key]" options={{ href: null }} />
     </Tabs>
   );
 }
