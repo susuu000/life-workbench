@@ -205,7 +205,7 @@ function RootNavigator() {
     (segments.length === 1 && ['index', 'discover', 'mine'].includes(segments[0]));
 
   // 侧边栏导航选择
-const handleSidebarSelect = useCallback((key: string) => {
+ const handleSidebarSelect = useCallback((key: string) => {
   if (key === 'home') {
     router.push('/');
   } else if (key === 'discover') {
@@ -221,12 +221,7 @@ const handleSidebarSelect = useCallback((key: string) => {
     setSidebarVisible(false);
   }
 }, [router]);
-    }
-    // 移动端关闭侧边栏
-    if (Platform.OS !== 'web') {
-      setSidebarVisible(false);
-    }
-  }, [router]);
+
 
   return (
     <View style={[{ flex: 1, backgroundColor: colors.background }]} onLayout={onLayoutRootView}>
