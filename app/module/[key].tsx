@@ -12,7 +12,7 @@ import SelfExploreDetail from '@/components/SelfExploreDetail';
 
 /**
  * 板块详情页（动态路由）
- * 路径: /(tabs)/module/[key]
+ * 路径: /module/[key]
  * 根据模块 key 渲染对应的详情组件
  */
 export default function ModuleDetailScreen() {
@@ -20,9 +20,9 @@ export default function ModuleDetailScreen() {
   const key = (params.key as string) ?? 'english';
   const moduleKey = key as ModuleKey;
   const insets = useSafeAreaInsets();
-  const meta = MODULE_META[moduleKey] ?? { label: '未知', icon: '❓' };
+  const meta = MODULE_META[moduleKey] ?? { label: '未知板块', icon: '📦' };
 
-  // 根据模块 key 渲染不同内容
+  // 根据模块 key 渲染对应的详情组件
   const renderContent = () => {
     switch (moduleKey) {
       case 'english':
@@ -38,25 +38,25 @@ export default function ModuleDetailScreen() {
       case 'self_explore':
         return <SelfExploreDetail />;
       default:
-        return <PlaceholderDetail icon={meta.icon} label={meta.label} desc="开发中…" />;
+        return <PlaceholderDetail icon={meta.icon} label={meta.label} desc="该板块暂无详情内容" />;
     }
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]]>
-      {/* 固定头部 */
-       <View style={styles.header}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* 顶部标题栏 */}
+      <View style={styles.header}>
         <Text style={styles.headerIcon}>{meta.icon}</Text>
         <Text style={styles.headerTitle}>{meta.label}</Text>
       </View>
 
-      {/* 板块内容区 */}
+      {/* 模块详情内容 */}
       {renderContent()}
     </View>
   );
 }
 
-/** 占位详情（用于尚未实现的板块） */
+/** 空板块占位（未匹配到任何模块时显示） */
 function PlaceholderDetail({ icon, label, desc }: { icon: string; label: string; desc: string }) {
   return (
     <View style={styles.placeholder}>
@@ -64,8 +64,8 @@ function PlaceholderDetail({ icon, label, desc }: { icon: string; label: string;
       <Text style={styles.placeholderLabel}>{label}</Text>
       <Text style={styles.placeholderDesc}>{desc}</Text>
       <View style={styles.placeholderBox}>
-        <Text style={styles.placeholderText}>🚧 该板块正在开发中</Text>
-        <Text style={styles.placeholderSub}>即将包含完整功能与数据同步</Text>
+        <Text style={styles.placeholderText}>🚧 该板块详情页正在开发中</Text>
+        <Text style={styles.placeholderSub}>请稍后刷新或返回首页查看其他内容</Text>
       </View>
     </View>
   );
@@ -84,11 +84,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   headerIcon: { fontSize: 28 },
-  headerTitle: { fontSize: FontSize.xl, fontWeight: 'bold', color Colors.textPrimary },
+  headerTitle: { fontSize: FontSize.xl, fontWeight: 'bold', color: Colors.textPrimary },
   placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xxl },
   placeholderIcon: { fontSize: 48, marginBottom: Spacing.md },
-  placeholderLabel: { fontSize: FontSize.xxl, fontWeight: 'bold', color Colors.primary, marginBottom: Spacing.sm },
-  placeholderDesc: { fontSize: FontSize.sm, color Colors.textSecondary, marginBottom: Spacing.xl },
+  placeholderLabel: { fontSize: FontSize.xxl, fontWeight: 'bold', color: Colors.primary, marginBottom: Spacing.sm },
+  placeholderDesc: { fontSize: FontSize.sm, color: Colors.textSecondary, marginBottom: Spacing.xl },
   placeholderBox: {
     width: '80%',
     alignItems: 'center',
@@ -98,6 +98,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  placeholderText: { fontSize: FontSize.lg, color Colors.textSecondary, marginBottom: Spacing.sm },
-  placeholderSub: { fontSize: FontSize.sm  color: Colors.textMuted, textAlign: 'center' },
+  placeholderText: { fontSize: FontSize.lg, color: Colors.textSecondary, marginBottom: Spacing.sm },
+  placeholderSub: { fontSize: FontSize.sm, color: Colors.textMuted, textAlign: 'center' },
 });
