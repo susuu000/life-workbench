@@ -37,7 +37,16 @@ export interface UserSettings {
   dark_mode: boolean;
   follow_system_theme: boolean;
   module_keys: ModuleKey[];
-  font_size: 'small' | 'normal' | 'large';
+  font_size: number;
+  font_family?: 'default' | 'serif' | 'kai';
+  density?: 'comfortable' | 'compact';
+  theme_color?: string;
+  app_name?: string;
+  weather_city?: string;
+  weather_enabled?: boolean;
+  daily_refresh_enabled?: boolean;
+  module_targets?: Record<string, number>;
+  custom_sections?: any[];
   created_at?: string;
   updated_at?: string;
 }
@@ -157,4 +166,13 @@ export interface DataExport {
   sticky_notes: StickyNote[];
   favorite_quotes: FavoriteQuote[];
   custom_modules: CustomModule[];
+}
+
+// ===== 用户资料 =====
+export interface Profile {
+  id: string;
+  display_name?: string;
+  avatar_url?: string;
+  created_at?: string;
+  updated_at?: string;
 }

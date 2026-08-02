@@ -205,7 +205,7 @@ function RootNavigator() {
     (segments.length === 1 && ['index', 'discover', 'mine'].includes(segments[0]));
 
   // 侧边栏导航选择
- const handleSidebarSelect = useCallback((key: string) => {
+  const handleSidebarSelect = useCallback((key: string) => {
   if (key === 'home') {
     router.push('/');
   } else if (key === 'discover') {
