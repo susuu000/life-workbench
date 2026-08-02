@@ -219,11 +219,21 @@ export default function HomeScreen() {
   }, []);
 
   // ---- 云端状态检测 ----
-  const checkCloud = useCallback(async () => {
-    setCloudStatus('checking');
-    const s = await checkCloudConnection();
-    setCloudStatus(s === 'connected' ? 'connected' : 'disconnected');
-  }, []);
+const checkCloud = useCallback(async () => {
+  setCloudStatus('checking');
+  try {
+    const connected = checkCloudConnection();
+    if (!connected) {
+      setCloudStatus('disconnected');
+      return;
+    }
+    // 进一步验证：尝试获取当前用户 session
+    const uid = await getCurrentUserId();
+    setCloudStatus(uid ? 'connected' : 'disconnected');
+  } catch {
+    setCloudStatus('disconnected');
+  }
+}, []);
 
   useEffect(() => { checkCloud(); const id = setInterval(checkCloud, 30000); return () => clearInterval(id); }, [checkCloud]);
 
