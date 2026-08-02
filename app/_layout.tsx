@@ -205,11 +205,22 @@ function RootNavigator() {
     (segments.length === 1 && ['index', 'discover', 'mine'].includes(segments[0]));
 
   // 侧边栏导航选择
-  const handleSidebarSelect = useCallback((key: string) => {
-    if (key === 'home') {
-      router.push('/(tabs)');
-    } else {
-      router.push(`/module/${key}`);
+const handleSidebarSelect = useCallback((key: string) => {
+  if (key === 'home') {
+    router.push('/');
+  } else if (key === 'discover') {
+    router.push('/discover');
+  } else if (key === 'profile') {
+    router.push('/mine');
+  } else if (key === 'settings') {
+    router.push('/settings');
+  } else {
+    router.push(`/module/${key}`);
+  }
+  if (Platform.OS !== 'web') {
+    setSidebarVisible(false);
+  }
+}, [router]);
     }
     // 移动端关闭侧边栏
     if (Platform.OS !== 'web') {
